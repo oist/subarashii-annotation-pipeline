@@ -3,4 +3,6 @@ resources/gtdb_genomes_reps_r202/
 resources/gtdb_proteins_aa_reps_r202.tar.gz
 resources/protein_faa_reps/
 resources/proteomes1007/
-
+resources/genomes1007/
+resources/bac120_taxonomy_r202.tsv
+resources/bac120_taxonomy_r202.tsv.gz

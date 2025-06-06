@@ -1,10 +1,6 @@
-RS_GCF_002973575.1 not found, so downloading from NCBI using ID: GCF_002973575.1
 RS_GCF_000012525.1 not found, so downloading from NCBI using ID: GCF_000012525.1
 RS_GCF_004343465.1 not found, so downloading from NCBI using ID: GCF_004343465.1
-RS_GCF_900155405.1 not found, so downloading from NCBI using ID: GCF_900155405.1
 RS_GCF_001311905.1 not found, so downloading from NCBI using ID: GCF_001311905.1
-GB_GCA_004338625.1 not found, so downloading from NCBI using ID: GCA_004338625.1
-no aa sequence available for GCA_004338625.1, copying the na sequence
 GB_GCA_001828385.1 not found, so downloading from NCBI using ID: GCA_001828385.1
 RS_GCF_001642875.1 not found, so downloading from NCBI using ID: GCF_001642875.1
 GB_GCA_006515885.1 not found, so downloading from NCBI using ID: GCA_006515885.1
@@ -13,7 +9,3 @@ RS_GCF_002020875.1 not found, so downloading from NCBI using ID: GCF_002020875.1
 RS_GCF_004361875.1 not found, so downloading from NCBI using ID: GCF_004361875.1
 RS_GCF_000005845.2 not found, so downloading from NCBI using ID: GCF_000005845.2
 RS_GCF_000513775.1 not found, so downloading from NCBI using ID: GCF_000513775.1
-GCA_013046825.1 was published 2019 and is a draft genome of Turicibacter sanguinis, strain: DSM 14220
-Maki et al 2020 sequences the same strain (albeit with different name: MOL361) and published a genome assembly https://pmc.ncbi.nlm.nih.gov/articles/PMC7303409/
-with the accession ID: GCA_013046825.1
-Let's use this insead of the missing genome GCA_004338625.1

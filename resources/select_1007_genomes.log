@@ -1,10 +1,7 @@
-GCF/002/973/575/GCF_002973575.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_002973575.1
+This script is not needed, as we'll use the aa sequences.
 GCF/000/012/525/GCF_000012525.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_000012525.1
 GCF/004/343/465/GCF_004343465.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_004343465.1
-GCF/900/155/405/GCF_900155405.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_900155405.1
 GCF/001/311/905/GCF_001311905.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_001311905.1
-GCA/004/338/625/GCA_004338625.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCA_004338625.1
-no sequence found for GCA_004338625.1
 GCA/001/828/385/GCA_001828385.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCA_001828385.1
 GCF/001/642/875/GCF_001642875.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_001642875.1
 GCA/006/515/885/GCA_006515885.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCA_006515885.1
@@ -13,7 +10,3 @@ GCF/002/020/875/GCF_002020875.1_genomic.fna.gz not found, so downloading from NC
 GCF/004/361/875/GCF_004361875.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_004361875.1
 GCF/000/005/845/GCF_000005845.2_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_000005845.2
 GCF/000/513/775/GCF_000513775.1_genomic.fna.gz not found, so downloading from NCBI using ID: GCF_000513775.1
-GCA_013046825.1 was published 2019 and is a draft genome of Turicibacter sanguinis, strain: DSM 14220
-Maki et al 2020 sequences the same strain (albeit with different name: MOL361) and published a genome assembly https://pmc.ncbi.nlm.nih.gov/articles/PMC7303409/
-with the accession ID: GCA_013046825.1
-Let's use this insead of the missing genome GCA_004338625.1
