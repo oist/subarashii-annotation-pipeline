@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=mafft
+#SBATCH --array=0-{maxidx}
+#SBATCH --cpus-per-task={threads}
+#SBATCH --mem-per-cpu={mem}
+#SBATCH --time={walltime}
+#SBATCH --output={logdir}/mafft_%A_%a.out
+#SBATCH --error={logdir}/mafft_%A_%a.err
+#SBATCH --chdir={root}
+
+# ---- load environment ----
+if [[ "{module}" == conda:* ]]; then
+    eval "$(conda shell.bash hook)"
+    conda activate "${{module#conda:}}"
+else
+    module load {module}
+fi
+
+# ---- locate file list ----
+FILELIST="{filelist}"
+FA=$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$FILELIST")
+
+echo "[mafft slurm] aligning $FA"
+mafft --auto --thread {threads} "$FA" > "${FA%.faa}.aln"
+

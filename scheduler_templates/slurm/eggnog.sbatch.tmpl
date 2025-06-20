@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --job-name=eggnog
+#SBATCH --cpus-per-task={threads}
+#SBATCH --mem={mem}
+#SBATCH --time={walltime}
+#SBATCH --output={logdir}/eggnog_%j.out
+#SBATCH --error={logdir}/eggnog_%j.err
+#SBATCH --chdir={root}
+
+# === load environment ===
+if [[ "{module}" == conda:* ]]; then
+    eval "$(conda shell.bash hook)"
+    conda activate "${{module#conda:}}"
+else
+    module load {module}
+fi
+
+# === run the same commands as the local script ===
+source contrib/read_conf.sh
+CONF={conf}
+
+RES_DIR=$(conf_get "$CONF" dirs result_dir)
+DB_DIR=$(conf_get "$CONF" eggnog db_dir)
+THREADS=$(conf_get "$CONF" eggnog threads)
+MODE=$(conf_get "$CONF" eggnog mode)
+FASTA="$RES_DIR/all_proteins.faa"
+
+mkdir -p "$RES_DIR/eggnog"
+
+emapper.py \
+    -i "$FASTA" \
+    -m "$MODE" \
+    --cpu "$THREADS" \
+    --data_dir "$DB_DIR" \
+    --output "$RES_DIR/eggnog/annotations" \
+    --override
+
