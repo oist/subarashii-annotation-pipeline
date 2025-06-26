@@ -39,27 +39,46 @@ RES_DIR=$(conf_get "$CONF" dirs result_dir)
 mkdir -p "$RES_DIR/logs"
 SB="$RES_DIR/logs/${STEP}_$(date +%s).sbatch"
 
-# pull resource values for this step
-THREADS=$(conf_get "$CONF" $STEP threads)
-MEM=$(conf_get "$CONF" $STEP mem)
-TIME=$(conf_get "$CONF" $STEP walltime)
+# ------------ resources (safe defaults if key missing) -------------
+THREADS=$(conf_get "$CONF" "$STEP" threads 2>/dev/null || echo 1)
+MEM=$(conf_get "$CONF" "$STEP" mem 2>/dev/null || echo 2G)
+TIME=$(conf_get "$CONF" "$STEP" walltime 2>/dev/null || echo 01:00:00)
 
-# substitute placeholders and write SBATCH file
-# substitute placeholders and write SBATCH file
+# ------------ optional placeholders ----------------
+: "${TRIMAL_FILELIST:=}" "${TRIMAL_CHUNK:=}" "${TRIMAL_MAXIDX:=}"
+: "${BMGE_FILELIST:=}"   "${BMGE_CHUNK:=}"   "${BMGE_MAXIDX:=}"
+: "${JAR_PATH:=$(conf_get "$CONF" bmge jar_path 2>/dev/null || true)}"
+: "${JAVA_MEM:=$(conf_get "$CONF" bmge java_mem 2>/dev/null || true)}"
 
-# substitute placeholders and write SBATCH file
-sed -e "s|{threads}|$THREADS|g" \
-    -e "s|{mem}|$MEM|g" \
-    -e "s|{walltime}|$TIME|g" \
-    -e "s|{root}|$ROOT_DIR|g" \
-    -e "s|{conf}|$CONF|g" \
-    -e "s|{logdir}|$RES_DIR/logs|g" \
-    -e "s|{module}|$(conf_get "$CONF" $STEP module)|g" \
-    -e "s|{filelist}|$MAFFT_FILELIST|g" \
-    -e "s|{maxidx}|$MAFFT_MAXIDX|g" \
-    "$TMPL" > "$SB"
+SED_ARGS=(
+  -e "s|{threads}|$THREADS|g"
+  -e "s|{mem}|$MEM|g"
+  -e "s|{walltime}|$TIME|g"
+  -e "s|{root}|$ROOT_DIR|g"
+  -e "s|{conf}|$CONF|g"
+  -e "s|{logdir}|$RES_DIR/logs|g"
+  -e "s|{module}|$(conf_get "$CONF" "$STEP" module 2>/dev/null || echo)|g"
+)
 
+case "$STEP" in
+  trimal)
+    SED_ARGS+=(
+      -e "s|{filelist}|$TRIMAL_FILELIST|g"
+      -e "s|{chunk}|$TRIMAL_CHUNK|g"
+      -e "s|{maxidx}|$TRIMAL_MAXIDX|g"
+    ) ;;
+  bmge)
+    SED_ARGS+=(
+      -e "s|{filelist}|$BMGE_FILELIST|g"
+      -e "s|{chunk}|$BMGE_CHUNK|g"
+      -e "s|{maxidx}|$BMGE_MAXIDX|g"
+      -e "s|{jar_path}|$JAR_PATH|g"
+      -e "s|{java_mem}|$JAVA_MEM|g"
+    ) ;;
+esac
 
-echo "[submit] Submitting $SB"
+sed "${SED_ARGS[@]}" "$TMPL" > "$SB"
+echo "[submit] wrote $SB"
 sbatch "$SB"
+echo "[submit] sbatch exit status $?"
 
