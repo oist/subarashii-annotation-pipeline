@@ -3,7 +3,8 @@ configfile: "config/config.yaml"
 rule all:
     input:
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
-        "resources/selected_proteomes"
+        "resources/selected_proteomes",
+        "results/genome2abbrev.csv"
 
 rule get_all_proteomes:
     output:
