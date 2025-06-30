@@ -3,7 +3,7 @@ configfile: "config/config.yaml"
 rule all:
     input:
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
-        directory("resources/selected_proteomes")
+        "resources/selected_proteomes"
 
 rule get_all_proteomes:
     output:
@@ -42,20 +42,20 @@ rule extract_all_genomes:
 rule select_proteomes:
     input:
         config["accession_ids_file"],
-        directory(config["all_proteomes_outdir"])
+        config["all_proteomes_outdir"]
     output:
         directory("resources/selected_proteomes")
     shell:
-        "scripts/select_proteomes.sh {input[0]} {config[all_proteomes_outdir]} {output}"
+        "workflow/scripts/select_proteomes.sh {input[0]} {input[1]} {output}"
 
 rule select_genomes:
     input:
-        "config['accession_ids_file']",
-        directory(config["all_genomes_outdir"])
+        config["accession_ids_file"],
+        config["all_genomes_outdir"]
     output:
         directory("resources/selected_genomes")
     shell:
-        "scripts/select_proteomes.sh {input[0]} {config[all_genomes_outdir]} {output}"
+        "workflow/scripts/select_genomes.sh {input[0]} {input[1]} {output}"
 
 rule get_bacterial_taxonomy_file:
     output:
@@ -71,6 +71,25 @@ rule unzip_bacterial_taxonomy_file:
     shell:
         "gzip -d {input}"
 
-#rule generate_shortcodes:
-#    input:
-#        "data/
+rule create_genome2taxa:
+    input:
+        config["accession_ids_file"],
+        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"])
+    output:
+        "results/genome2taxa.csv"
+    shell:
+        """
+        REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
+        grep -E "$REGEXP" {input[1]} | sed -E 's/\\t+/,/g' > {output}
+        if [ -z "{config[manually_add_taxa_file]}" ] -a [ -f {config[manually_add_taxa_file]} ]; then
+             cat {config[manually_add_taxa_file]} >> {output}
+        fi
+        """
+
+rule generate_shortcodes:
+    input:
+        "results/genome2taxa.csv"
+    output:
+        "results/genome2abbrev.csv"
+    shell:
+        "workflow/scripts/rename_genomes.py {input} {output}"

@@ -4,3 +4,5 @@ gtdb_subversion: "0"
 gtdb_base_url: "https://data.ace.uq.edu.au/public/gtdb/data/releases/"
 all_proteomes_outdir: "resources/all_proteomes"
 all_genomes_outdir: "resources/all_genomes"
+# manually add taxa information that is not present in GTDB's taxonomy file
+manually_add_taxa_file: "resources/manually_add_taxa.txt"

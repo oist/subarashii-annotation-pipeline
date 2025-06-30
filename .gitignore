@@ -6,3 +6,7 @@ resources/proteomes1007/
 resources/genomes1007/
 resources/bac120_taxonomy_r202.tsv
 resources/bac120_taxonomy_r202.tsv.gz
+snakemake_env/
+snakemake/resources
+.snakemake/
+snakemake/results
