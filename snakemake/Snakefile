@@ -1,0 +1,76 @@
+configfile: "config/config.yaml"
+
+rule all:
+    input:
+        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
+        directory("resources/selected_proteomes")
+
+rule get_all_proteomes:
+    output:
+        "resources/all_proteomes.tar.gz",
+    shell:
+        "wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' -O {output}"
+
+rule get_all_genomes:
+    output:
+        "resources/all_genomes.tar.gz"
+    shell:
+        "wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{params.gtdb_version}.tar.gz' -O {output}"
+
+rule extract_all_proteomes:
+    input:
+        "resources/all_proteomes.tar.gz"
+    output:
+        directory(config["all_proteomes_outdir"])
+    shell:
+        """
+        mkdir {config[all_proteomes_outdir]}
+        tar -xzf {input} -C {config[all_proteomes_outdir]} --strip-components=1
+        """
+
+rule extract_all_genomes:
+    input:
+        "resources/all_genomes.tar.gz"
+    output:
+        directory(config["all_genomes_outdir"])
+    shell:
+        """
+        mkdir {config[all_genomes_outdir]}
+        tar -xzf {input} -C {config[all_genomes_outdir]} --strip-components=1
+        """
+
+rule select_proteomes:
+    input:
+        config["accession_ids_file"],
+        directory(config["all_proteomes_outdir"])
+    output:
+        directory("resources/selected_proteomes")
+    shell:
+        "scripts/select_proteomes.sh {input[0]} {config[all_proteomes_outdir]} {output}"
+
+rule select_genomes:
+    input:
+        "config['accession_ids_file']",
+        directory(config["all_genomes_outdir"])
+    output:
+        directory("resources/selected_genomes")
+    shell:
+        "scripts/select_proteomes.sh {input[0]} {config[all_genomes_outdir]} {output}"
+
+rule get_bacterial_taxonomy_file:
+    output:
+        "resources/bac120_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+    shell:
+        "wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output} || wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}"
+	
+rule unzip_bacterial_taxonomy_file:
+    input:
+        "resources/bac120_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+    output:
+        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"])
+    shell:
+        "gzip -d {input}"
+
+#rule generate_shortcodes:
+#    input:
+#        "data/

@@ -1,0 +1,6 @@
+accession_ids_file: "resources/list_of_accession_ids.txt"
+gtdb_version: "202"
+gtdb_subversion: "0"
+gtdb_base_url: "https://data.ace.uq.edu.au/public/gtdb/data/releases/"
+all_proteomes_outdir: "resources/all_proteomes"
+all_genomes_outdir: "resources/all_genomes"
