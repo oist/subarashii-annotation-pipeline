@@ -137,7 +137,7 @@ rule diamond_all_vs_all:
 
         # ---------- guarantee self-hits so singletons survive ---------- 
         # q s pident bits evalue qcov scov  (7 cols, tab-separated)
-        awk '/^>/{sub(/^>/,"",$0); printf "%s\t%s\t100\t1000\t1e-200\t100\t100\n",$0,$0 }' "{input.query}" >> "{output}"
+        awk '/^>/{{sub(/^>/,"",$0); printf "%s\t%s\t100\t1000\t1e-200\t100\t100\n",$0,$0 }}' "{input.query}" >> "{output}"
         """
 
 rule filter_and_convert_into_mcl_s_abc_format:
