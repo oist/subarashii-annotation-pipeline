@@ -4,7 +4,8 @@ rule all:
     input:
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
         "resources/selected_proteomes",
-        "results/genome2abbrev.csv"
+        "results/genome2abbrev.csv",
+        expand("results/mcl_clusters_I{inf}.txt", inf=config["mcl"]["inflation"])
 
 rule get_all_proteomes:
     output:
@@ -82,8 +83,11 @@ rule create_genome2taxa:
         """
         REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
         grep -E "$REGEXP" {input[1]} | sed -E 's/\\t+/,/g' > {output}
-        if [ -z "{config[manually_add_taxa_file]}" ] -a [ -f {config[manually_add_taxa_file]} ]; then
+        if [ -s "{config[manually_add_taxa_file]}" ]; then
+             echo "Appending contents of file {config[manually_add_taxa_file]} to {output}"
              cat {config[manually_add_taxa_file]} >> {output}
+        else
+             echo "{config[manually_add_taxa_file]} not existing or empty"
         fi
         """
 
@@ -94,3 +98,64 @@ rule generate_shortcodes:
         "results/genome2abbrev.csv"
     shell:
         "workflow/scripts/rename_genomes.py {input} {output}"
+
+rule cat_all_sequences:
+    input:
+        "resources/selected_proteomes"
+    output:
+        "results/all_proteomes.faa"
+    shell:
+        "cat {input}/*.faa > {output}"
+
+rule make_diamond_db:
+    input:
+        "results/all_proteomes.faa"
+    output:
+        "results/proteomes.dmnd"
+    threads: config["diamond"]["threads"]
+    shell:
+        "diamond makedb --in {input} -d {output} --threads {threads}"
+
+rule diamond_all_vs_all:
+    input:
+        db="results/proteomes.dmnd",
+        query="results/all_proteomes.faa"
+    output:
+        "results/all_vs_all.tsv"
+    resources:
+        mem_mb=100
+    threads: config["diamond"]["threads"]
+    shell:
+        """
+        diamond blastp \
+                --db     {input.db} \
+                --query  {input.query} \
+                --out    {output} \
+                --outfmt 6 qseqid sseqid pident bitscore evalue qcovhsp scovhsp \
+                --more-sensitive \
+                --threads {threads}
+
+        # ---------- guarantee self-hits so singletons survive ---------- 
+        # q s pident bits evalue qcov scov  (7 cols, tab-separated)
+        awk '/^>/{sub(/^>/,"",$0); printf "%s\t%s\t100\t1000\t1e-200\t100\t100\n",$0,$0 }' "{input.query}" >> "{output}"
+        """
+
+rule filter_and_convert_into_mcl_s_abc_format:
+    input:
+        "results/all_vs_all.tsv"
+    output:
+        "results/all_vs_all.abc"
+    params:
+        evalue_cut=config["diamond"]["evalue_cut"],
+        cov_cut=config["diamond"]["cov_cut"]
+    script:
+        "workflow/scripts/filter_and_convert.py"
+
+rule mcl_sweep:
+    input:
+        "results/all_vs_all.abc"
+    output:
+        "results/mcl_clusters_I{inflation}.txt"
+    shell:
+        "mcl {input} --abc -I {wildcards.inflation} -o {output}"
+        

@@ -54,11 +54,11 @@ def main():
 
                 # we don't need to prefix with non-number,
                 # if it gets prefixed by domain's first letter
-                if not args.domain and re.match("\d", shortcode[0]):
+                if not args.domain and re.match(r"\d", shortcode[0]):
                     shortcode = 'S' + shortcode
 
-                if re.match("\d", shortcode[-1]):
-                    if re.match("\d", shortcode[-3]):
+                if re.match(r"\d", shortcode[-1]):
+                    if re.match(r"\d", shortcode[-3]):
                         shortcode = shortcode[:-2] + 'n'
                     else:
                         shortcode = shortcode[:-2]
