@@ -123,7 +123,9 @@ rule diamond_all_vs_all:
     output:
         "results/all_vs_all.tsv"
     resources:
-        mem_mb=100
+        mem_mb_per_cpu=5000,
+        # 1 day runtime
+        runtime=1440
     threads: config["diamond"]["threads"]
     shell:
         """
@@ -148,14 +150,28 @@ rule filter_and_convert_into_mcl_s_abc_format:
     params:
         evalue_cut=config["diamond"]["evalue_cut"],
         cov_cut=config["diamond"]["cov_cut"]
-    script:
-        "workflow/scripts/filter_and_convert.py"
+    shell:
+        "workflow/scripts/filter_and_convert.py -i {input} -o {output} -e {params.evalue_cut} -c {params.cov_cut}"
 
 rule mcl_sweep:
     input:
         "results/all_vs_all.abc"
     output:
         "results/mcl_clusters_I{inflation}.txt"
+    resources:
+        mem_mb=10000,
+        runtime=1440
     shell:
         "mcl {input} --abc -I {wildcards.inflation} -o {output}"
+
+rule split_mcl_clusters:
+    input:
+        fasta="results/all_proteomes.faa",
+        cluster="results/mcl_clusters_I{inflation}.txt"
+    output:
+        directory("results/mcl/")
+    params:
+        huge_cutoff=300
+    shell:
+        "workflow/scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -i {wildcards.inflation} -o {output}"
         

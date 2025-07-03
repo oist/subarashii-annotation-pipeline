@@ -1,37 +1,44 @@
 #!/usr/bin/env python3
 """
 Read DIAMOND hits (tab-separated), keep only matches that pass the
-e-value and coverage cut-offs defined in pipeline.conf, and write the
-result in MCL .abc format (q s weight).
+e-value and coverage cut-offs and write the result in MCL .abc 
+format (q s weight).
 
-Inputs  (from config [dirs]/result_dir):
-    all_vs_all.tsv     – produced by 6_diamond_all_vs_all.sh
+Authors:
+    - Adrian A. Davin
 
-Outputs (same directory):
-    all_vs_all.abc
+Version:
+    - v0.1 (2025-07-03)
 """
 import csv
+import argparse
 
-e_cut   = float(snakemake.params["evalue_cut"])
-cov_cut = float(snakemake.params["cov_cut"])
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-e", "--evalue", help="e-value cut-off", required=True)
+    parser.add_argument("-c", "--coverage", help="Coverage cut-off (in percentage)", required=True)
+    parser.add_argument("-i", "--input", help="diamond's all against all output tsv file", required=True)
+    parser.add_argument("-o", "--output", help="Output file name for MCL-compatible abc file", required=True)
+    args = parser.parse_args()
 
-in_tsv  = snakemake.input[0]
-out_abc = snakemake.output[0]
+    kept = 0
+    total = 0
 
-kept = 0
-total = 0
+    with args.input.open() as fi, args.output.open("w") as fo:
+        reader = csv.reader(fi, delimiter="\t")
+        for q, s, pid, bits, e, qcov, scov in reader:
+            total += 1
+            if float(e) > args.evalue:
+                continue
+            if min(float(qcov), float(scov)) < args.coverage:
+                continue
+            fo.write(f"{q} {s} {bits}\n")
+            kept += 1
 
-with in_tsv.open() as fi, out_abc.open("w") as fo:
-    reader = csv.reader(fi, delimiter="\t")
-    for q, s, pid, bits, e, qcov, scov in reader:
-        total += 1
-        if float(e) > e_cut:
-            continue
-        if min(float(qcov), float(scov)) < cov_cut:
-            continue
-        fo.write(f"{q} {s} {bits}\n")
-        kept += 1
+    print(f"[filter_and_convert] kept {kept}/{total} hits "
+          f"(E <= {args.evalue}, cov >= {args.coverage}%)")
 
-print(f"[filter_and_convert] kept {kept}/{total} hits "
-      f"(E <= {e_cut}, cov >= {cov_cut}%)")
+if __name__ == "__main__":
+    main()
+    exit(0)
 
