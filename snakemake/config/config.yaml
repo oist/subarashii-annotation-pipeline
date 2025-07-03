@@ -7,6 +7,14 @@ all_proteomes_outdir: "resources/all_proteomes"
 all_genomes_outdir: "resources/all_genomes"
 # manually add taxa information that is not present in GTDB's taxonomy file
 manually_add_taxa_file: "resources/manually_add_taxa.txt"
+<<<<<<< Updated upstream
+=======
+default-resources:
+  slurm_partition: "compute"
+  mem_mb_per_cpu: 2000
+  runtime: 60
+  tasks: 1
+>>>>>>> Stashed changes
 diamond:
   threads: 16
   evalue_cut: 1e-5
