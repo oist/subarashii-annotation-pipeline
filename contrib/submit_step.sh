@@ -9,6 +9,9 @@ STEP="$1"
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)   # absolute contrib/
 ROOT_DIR=$(dirname "$SCRIPT_DIR")         # absolute repo root
 
+: "${IQTREE_FILELIST:=}" "${IQTREE_MAXIDX:=0}"
+: "${ALERAX_FFILE:=}" "${ALERAX_PREFIX:=}"
+
 
 # search order: CLI override > contrib/ > repo root
 CONF="${PIPELINE_CONF:-}"
@@ -38,6 +41,10 @@ TMPL="$ROOT_DIR/$TEMPLATE_DIR/$ENGINE/${STEP}.sbatch.tmpl"
 RES_DIR=$(conf_get "$CONF" dirs result_dir)
 mkdir -p "$RES_DIR/logs"
 SB="$RES_DIR/logs/${STEP}_$(date +%s).sbatch"
+
+# TMPL="$ROOT_DIR/$TEMPLATE_DIR/slurm/pb.sbatch.tmpl"
+
+
 
 # ------------ resources (safe defaults if key missing) -------------
 THREADS=$(conf_get "$CONF" "$STEP" threads 2>/dev/null || echo 1)
@@ -75,6 +82,22 @@ case "$STEP" in
       -e "s|{jar_path}|$JAR_PATH|g"
       -e "s|{java_mem}|$JAVA_MEM|g"
     ) ;;
+    pb)
+  SED_ARGS+=(
+    -e "s|{filelist}|$PB_FILELIST|g"
+    -e "s|{maxidx}|$PB_MAXIDX|g"
+  ) ;;
+  iqtree)
+    SED_ARGS+=(
+      -e "s|{filelist}|$IQTREE_FILELIST|g"
+      -e "s|{maxidx}|$IQTREE_MAXIDX|g"
+  ) ;;
+  alerax)
+    SED_ARGS+=(
+      -e "s|{families_file}|$ALERAX_FFILE|g"
+      -e "s|{out_prefix}|$ALERAX_PREFIX|g"
+    ) ;;
+
 esac
 
 sed "${SED_ARGS[@]}" "$TMPL" > "$SB"
