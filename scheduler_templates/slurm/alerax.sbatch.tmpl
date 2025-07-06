@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=alerax
+#SBATCH --cpus-per-task=120
+#SBATCH --mem-per-cpu=4G
+#SBATCH --time=120:00:00
+#SBATCH --output={logdir}/alerax_%j.out
+#SBATCH --error={logdir}/alerax_%j.err
+#SBATCH --chdir={root}
+
+module load stack/2024-06
+module load gcc/8.5.0
+module load openmpi/4.1.6
+
+ALERAX=/cluster/home/aadria/AleRax/build/bin/alerax   # ← adjust if needed
+FFILE={families_file}
+PREFIX={out_prefix}
+
+mpiexec --oversubscribe -np $SLURM_CPUS_PER_TASK "$ALERAX" \
+    --families  "$FFILE" \
+    --rec-model UndatedDTL \
+    --species-tree-search HYBRID \
+    -s MiniNJ \
+    --transfer-constraint PARENTS \
+    --prefix "$PREFIX"
+

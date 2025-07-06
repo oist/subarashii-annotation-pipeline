@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --job-name=trimal
+#SBATCH --array=0-{maxidx}
+#SBATCH --cpus-per-task={threads}
+#SBATCH --mem={mem}
+#SBATCH --time={walltime}
+#SBATCH --output={logdir}/trimal_%A_%a.out
+#SBATCH --error={logdir}/trimal_%A_%a.err
+#SBATCH --chdir={root}
+
+module load trimAl        # Morgan’s module name
+
+# ------------------------------------------------------------
+# Determine the subset of files this array task should process
+# ------------------------------------------------------------
+FILELIST="{filelist}"     # absolute path set by submitter
+CHUNK={chunk}        # files per task
+START=$(( SLURM_ARRAY_TASK_ID * CHUNK ))
+END=$(( START + CHUNK - 1 ))
+
+mapfile -t FILES < "$FILELIST"
+TOTAL=${#FILES[@]}
+if (( START >= TOTAL )); then
+    echo "[trimal] Nothing to do for task $SLURM_ARRAY_TASK_ID"; exit 0
+fi
+if (( END >= TOTAL )); then END=$(( TOTAL - 1 )); fi
+
+echo "[trimal] Task $SLURM_ARRAY_TASK_ID processing indexes $START … $END (total $TOTAL)"
+
+for IDX in $(seq $START $END); do
+    IN="${FILES[$IDX]}"
+    OUT="${IN%.aln}.trim"
+    echo "  trimming $IN → $OUT"
+    trimal -in "$IN" -out "$OUT" -gt 0.1
+done
+echo "[trimal] Task $SLURM_ARRAY_TASK_ID done."
+

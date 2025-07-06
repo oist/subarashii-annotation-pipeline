@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=iqtree
+#SBATCH --array=0-{maxidx}
+#SBATCH --cpus-per-task={threads}
+#SBATCH --mem-per-cpu={mem}
+#SBATCH --time={walltime}
+#SBATCH --output={logdir}/iqtree_%A_%a.out
+#SBATCH --error={logdir}/iqtree_%A_%a.err
+#SBATCH --chdir={root}
+
+module load stack/2024-06
+module load IQ-TREE/2.2.2.7        # Euler’s module
+
+ALIGN=$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" {filelist})
+cd "$(dirname "$ALIGN")" || exit 1
+BASE=$(basename "$ALIGN")
+
+echo "[IQ-TREE] running on $BASE"
+iqtree2 -s "$BASE" -m MFP -B 5000 -wbtl -nt AUTO
+echo "[IQ-TREE] finished $BASE"
+

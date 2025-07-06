@@ -1,0 +1,26 @@
+#!/bin/bash
+#SBATCH --job-name=bmge
+#SBATCH --array=0-{maxidx}
+#SBATCH --cpus-per-task={threads}
+#SBATCH --mem-per-cpu={mem}
+#SBATCH --time={walltime}
+#SBATCH --output={logdir}/bmge_%A_%a.out
+#SBATCH --error={logdir}/bmge_%A_%a.err
+#SBATCH --chdir={root}
+
+# ---- load environment ----
+if [[ "{module}" == conda:* ]]; then
+    eval "$(conda shell.bash hook)"
+    conda activate "${{module#conda:}}"
+else
+    # support multiple space-separated modules
+    for m in {module}; do module load "$m"; done
+fi
+
+# ---- pick the alignment file for this task ----
+ALN=$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" {filelist})
+OUT="${ALN%.aln}.trim"
+
+echo "[BMGE] trimming $ALN -> $OUT"
+java -Xmx{java_mem} -jar {jar_path} -i "$ALN" -t AA -m BLOSUM30 -of "$OUT"
+
