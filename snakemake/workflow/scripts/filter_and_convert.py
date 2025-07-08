@@ -24,7 +24,7 @@ def main():
     kept = 0
     total = 0
 
-    with args.input.open() as fi, args.output.open("w") as fo:
+    with open(args.input, "r") as fi, open(args.output, "w") as fo:
         reader = csv.reader(fi, delimiter="\t")
         for q, s, pid, bits, e, qcov, scov in reader:
             total += 1

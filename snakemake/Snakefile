@@ -121,7 +121,7 @@ rule diamond_all_vs_all:
         db="results/proteomes.dmnd",
         query="results/all_proteomes.faa"
     output:
-        "results/all_vs_all.tsv"
+        "results/all_vs_all_wo_selfhits.tsv"
     resources:
         mem_mb_per_cpu=5000,
         # 1 day runtime
@@ -136,11 +136,20 @@ rule diamond_all_vs_all:
                 --outfmt 6 qseqid sseqid pident bitscore evalue qcovhsp scovhsp \
                 --more-sensitive \
                 --threads {threads}
+        """
 
+rule add_self_hits_to_diamond_all_vs_all:
+    input:
+        "results/all_vs_all_wo_selfhits.tsv"
+    output:
+        "results/all_vs_all.tsv"
+    shell:
+        """
         # ---------- guarantee self-hits so singletons survive ---------- 
         # q s pident bits evalue qcov scov  (7 cols, tab-separated)
-        awk '/^>/{{sub(/^>/,"",$0); printf "%s\t%s\t100\t1000\t1e-200\t100\t100\n",$0,$0 }}' "{input.query}" >> "{output}"
+        awk '/^>/{{sub(/^>/,"",$0); printf "%s\\t%s\\t100\\t1000\\t1e-200\\t100\\t100\\n",$0,$0 }}' "{input}" >> "{output}"
         """
+
 
 rule filter_and_convert_into_mcl_s_abc_format:
     input:
