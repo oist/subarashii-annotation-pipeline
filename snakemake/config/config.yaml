@@ -14,3 +14,7 @@ diamond:
   cov_cut: 50 
 mcl:
   inflation: [1.4, 1.8, 2.0]
+eggnog:
+  threads: 60
+mafft:
+  threads: 4

@@ -15,8 +15,8 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("-e", "--evalue", help="e-value cut-off", required=True)
-    parser.add_argument("-c", "--coverage", help="Coverage cut-off (in percentage)", required=True)
+    parser.add_argument("-e", "--evalue", help="e-value cut-off", required=True, type=float)
+    parser.add_argument("-c", "--coverage", help="Coverage cut-off (in percentage)", required=True, type=float)
     parser.add_argument("-i", "--input", help="diamond's all against all output tsv file", required=True)
     parser.add_argument("-o", "--output", help="Output file name for MCL-compatible abc file", required=True)
     args = parser.parse_args()

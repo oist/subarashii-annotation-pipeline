@@ -140,14 +140,16 @@ rule diamond_all_vs_all:
 
 rule add_self_hits_to_diamond_all_vs_all:
     input:
-        "results/all_vs_all_wo_selfhits.tsv"
+        query="results/all_proteomes.faa",
+        diamond="results/all_vs_all_wo_selfhits.tsv"
     output:
         "results/all_vs_all.tsv"
     shell:
         """
+        cp {input.diamond} {output}
         # ---------- guarantee self-hits so singletons survive ---------- 
         # q s pident bits evalue qcov scov  (7 cols, tab-separated)
-        awk '/^>/{{sub(/^>/,"",$0); printf "%s\\t%s\\t100\\t1000\\t1e-200\\t100\\t100\\n",$0,$0 }}' "{input}" >> "{output}"
+        awk '/^>/{{sub(/^>/,"",$0); printf "%s\\t%s\\t100\\t1000\\t1e-200\\t100\\t100\\n",$0,$0 }}' "{input.query}" >> "{output}"
         """
 
 
@@ -168,7 +170,7 @@ rule mcl_sweep:
     output:
         "results/mcl_clusters_I{inflation}.txt"
     resources:
-        mem_mb=10000,
+        mem_mb_per_cpu=20000,
         runtime=1440
     shell:
         "mcl {input} --abc -I {wildcards.inflation} -o {output}"
@@ -178,9 +180,62 @@ rule split_mcl_clusters:
         fasta="results/all_proteomes.faa",
         cluster="results/mcl_clusters_I{inflation}.txt"
     output:
-        directory("results/mcl/")
+        directory("results/mcl/{inflation}/Normal/")
     params:
         huge_cutoff=300
     shell:
-        "workflow/scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -i {wildcards.inflation} -o {output}"
-        
+        "workflow/scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -o {output}"
+
+rule download_eggnog_diamond_database:
+    output:
+        directory("resources/eggnog_diamond_db")
+    shell:
+        "download_eggnog_data.py -f --data_dir {output}"
+
+rule eggnog_mapper:
+    input:
+        fasta="results/all_proteomes.faa",
+        db="resources/eggnog_diamond_db"
+    output:
+        directory("results/eggnog/annotations")
+    threads: config["eggnog"]["threads"]
+    resources:
+        mem_mb_per_cpu=4000,
+        runtime=2880
+    params:
+        mode="diamond"
+    shell:
+        """
+        emapper.py -i {input.fasta} --cpu {threads} --data_dir {input.db} -m {params.mode} --output {output} --override
+        """
+
+rule mafft_align:
+    input:
+        "results/mcl/{inflation}/Normal/{msa}.faa"
+    output:
+        "results/mafft/{inflation}/{msa}.aln"
+    threads: config["mafft"]["threads"]
+    resources:
+        mem_mb_per_cpu=4000,
+        runtime=600
+    shell:
+        "mafft --auto --thread {threads} {input} > {output}"
+
+rule trimal_trim:
+    input:
+        "results/mafft/{inflation}/{msa}.aln"
+    output:
+        "results/trimal/{inflation}/{msa}.trim"
+    resources:
+        mem_mb_per_cpu=3000,
+        runtime=600
+    shell:
+        "trimal -in {input} -out {output} -gt 0.1"
+
+rule alignment_statistics:
+    input:
+        "results/trimal/{inflation}/"
+    output:
+        "results/alignment_statistics_I{inflation}.txt"
+    shell:
+        "workflow/scripts/alignment_stats.py {input} {output}"
