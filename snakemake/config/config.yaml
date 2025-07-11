@@ -1,5 +1,6 @@
 ---
-accession_ids_file: "resources/list_of_accession_ids.txt"
+dataset: "dataset_test"
+#accession_ids_file: "resources/list_of_accession_ids.txt"
 gtdb_version: "202"
 gtdb_subversion: "0"
 gtdb_base_url: "https://data.ace.uq.edu.au/public/gtdb/data/releases/"
@@ -14,6 +15,10 @@ diamond:
   cov_cut: 50 
 mcl:
   inflation: [1.4, 1.8, 2.0]
+  # memory in MB, 20 GB was not enough, setting to 100 GB
+  memory: 100000
+  # runtime in minutes (1 day = 1440 min)
+  runtime: 1440
 eggnog:
   threads: 60
 mafft:

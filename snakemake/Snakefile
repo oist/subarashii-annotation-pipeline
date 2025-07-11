@@ -3,9 +3,11 @@ configfile: "config/config.yaml"
 rule all:
     input:
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
-        "resources/selected_proteomes",
-        "results/genome2abbrev.csv",
-        expand("results/mcl_clusters_I{inf}.txt", inf=config["mcl"]["inflation"])
+        "resources/{}/selected_proteomes".format(config["dataset"]),
+        "results/{}/genome2abbrev.csv".format(config["dataset"]),
+        expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
+        "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
+        expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"])
 
 rule get_all_proteomes:
     output:
@@ -43,19 +45,19 @@ rule extract_all_genomes:
 
 rule select_proteomes:
     input:
-        config["accession_ids_file"],
-        config["all_proteomes_outdir"]
+        "resources/{dataset}/list_of_accession_ids.txt",
+        "resources/all_proteomes"
     output:
-        directory("resources/selected_proteomes")
+        directory("resources/{dataset}/selected_proteomes")
     shell:
         "workflow/scripts/select_proteomes.sh {input[0]} {input[1]} {output}"
 
 rule select_genomes:
     input:
-        config["accession_ids_file"],
-        config["all_genomes_outdir"]
+        "resources/{dataset}/list_of_accession_ids.txt",
+        "resources/all_genomes"
     output:
-        directory("resources/selected_genomes")
+        directory("resources/{dataset}/selected_genomes")
     shell:
         "workflow/scripts/select_genomes.sh {input[0]} {input[1]} {output}"
 
@@ -75,10 +77,10 @@ rule unzip_bacterial_taxonomy_file:
 
 rule create_genome2taxa:
     input:
-        config["accession_ids_file"],
+        "resources/{dataset}/list_of_accession_ids.txt",
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"])
     output:
-        "results/genome2taxa.csv"
+        "results/{dataset}/genome2taxa.csv"
     shell:
         """
         REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
@@ -93,35 +95,35 @@ rule create_genome2taxa:
 
 rule generate_shortcodes:
     input:
-        "results/genome2taxa.csv"
+        "results/{dataset}/genome2taxa.csv"
     output:
-        "results/genome2abbrev.csv"
+        "results/{dataset}/genome2abbrev.csv"
     shell:
         "workflow/scripts/rename_genomes.py {input} {output}"
 
 rule cat_all_sequences:
     input:
-        "resources/selected_proteomes"
+        "resources/{dataset}/selected_proteomes"
     output:
-        "results/all_proteomes.faa"
+        "results/{dataset}/all_proteomes.faa"
     shell:
         "cat {input}/*.faa > {output}"
 
 rule make_diamond_db:
     input:
-        "results/all_proteomes.faa"
+        "results/{dataset}/all_proteomes.faa"
     output:
-        "results/proteomes.dmnd"
+        "results/{dataset}/proteomes.dmnd"
     threads: config["diamond"]["threads"]
     shell:
         "diamond makedb --in {input} -d {output} --threads {threads}"
 
 rule diamond_all_vs_all:
     input:
-        db="results/proteomes.dmnd",
-        query="results/all_proteomes.faa"
+        db="results/{dataset}/proteomes.dmnd",
+        query="results/{dataset}/all_proteomes.faa"
     output:
-        "results/all_vs_all_wo_selfhits.tsv"
+        "results/{dataset}/all_vs_all_wo_selfhits.tsv"
     resources:
         mem_mb_per_cpu=5000,
         # 1 day runtime
@@ -140,10 +142,10 @@ rule diamond_all_vs_all:
 
 rule add_self_hits_to_diamond_all_vs_all:
     input:
-        query="results/all_proteomes.faa",
-        diamond="results/all_vs_all_wo_selfhits.tsv"
+        query="results/{dataset}/all_proteomes.faa",
+        diamond="results/{dataset}/all_vs_all_wo_selfhits.tsv"
     output:
-        "results/all_vs_all.tsv"
+        "results/{dataset}/all_vs_all.tsv"
     shell:
         """
         cp {input.diamond} {output}
@@ -155,9 +157,9 @@ rule add_self_hits_to_diamond_all_vs_all:
 
 rule filter_and_convert_into_mcl_s_abc_format:
     input:
-        "results/all_vs_all.tsv"
+        "results/{dataset}/all_vs_all.tsv"
     output:
-        "results/all_vs_all.abc"
+        "results/{dataset}/all_vs_all.abc"
     params:
         evalue_cut=config["diamond"]["evalue_cut"],
         cov_cut=config["diamond"]["cov_cut"]
@@ -166,21 +168,22 @@ rule filter_and_convert_into_mcl_s_abc_format:
 
 rule mcl_sweep:
     input:
-        "results/all_vs_all.abc"
+        "results/{dataset}all_vs_all.abc"
     output:
-        "results/mcl_clusters_I{inflation}.txt"
+        "results/{dataset}mcl_clusters_I{inflation}.txt"
     resources:
-        mem_mb_per_cpu=20000,
-        runtime=1440
+        mem_mb_per_cpu=config["mcl"]["memory"],
+        runtime=config["mcl"]["runtime"]
     shell:
         "mcl {input} --abc -I {wildcards.inflation} -o {output}"
 
 rule split_mcl_clusters:
     input:
-        fasta="results/all_proteomes.faa",
-        cluster="results/mcl_clusters_I{inflation}.txt"
+        fasta="results/{dataset}/all_proteomes.faa",
+        cluster="results/{dataset}/mcl_clusters_I{inflation}.txt"
+        #cluster=expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"])
     output:
-        directory("results/mcl/{inflation}/Normal/")
+        directory("results/{dataset}/mcl/{inflation}")
     params:
         huge_cutoff=300
     shell:
@@ -188,16 +191,24 @@ rule split_mcl_clusters:
 
 rule download_eggnog_diamond_database:
     output:
-        directory("resources/eggnog_diamond_db")
+        "resources/eggnog_diamond_db/eggnog.db",
+        "resources/eggnog_diamond_db/eggnog_proteins.dmnd",
+        "resources/eggnog_diamond_db/eggnog.taxa.db",
+        "resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl"
+    params:
+        outdir="resources/eggnog_diamond_db"
     shell:
-        "download_eggnog_data.py -f --data_dir {output}"
+        "mkdir -p {params.outdir}"
+        "download_eggnog_data.py -y -f --data_dir {params.outdir}"
 
 rule eggnog_mapper:
     input:
-        fasta="results/all_proteomes.faa",
+        fasta="results/{dataset}/all_proteomes.faa",
         db="resources/eggnog_diamond_db"
     output:
-        directory("results/eggnog/annotations")
+        "results/{dataset}/eggnog/annotations.emapper.annotations",
+        "results/{dataset}/eggnog/annotations.emapper.hits",
+        "results/{dataset}/eggnog/annotations.emapper.seed_orthologs",
     threads: config["eggnog"]["threads"]
     resources:
         mem_mb_per_cpu=4000,
@@ -211,9 +222,9 @@ rule eggnog_mapper:
 
 rule mafft_align:
     input:
-        "results/mcl/{inflation}/Normal/{msa}.faa"
+        "results/{dataset}/mcl/{inflation}/Normal/{msa}.faa"
     output:
-        "results/mafft/{inflation}/{msa}.aln"
+        "results/{dataset}/mafft/{inflation}/{msa}.aln"
     threads: config["mafft"]["threads"]
     resources:
         mem_mb_per_cpu=4000,
@@ -223,9 +234,9 @@ rule mafft_align:
 
 rule trimal_trim:
     input:
-        "results/mafft/{inflation}/{msa}.aln"
+        "results/{dataset}/mafft/{inflation}/{msa}.aln"
     output:
-        "results/trimal/{inflation}/{msa}.trim"
+        "results/{dataset}/trimal/{inflation}/{msa}.trim"
     resources:
         mem_mb_per_cpu=3000,
         runtime=600
@@ -234,8 +245,8 @@ rule trimal_trim:
 
 rule alignment_statistics:
     input:
-        "results/trimal/{inflation}/"
+        "results/{dataset}/trimal/{inflation}/"
     output:
-        "results/alignment_statistics_I{inflation}.txt"
+        "results/{dataset}/alignment_statistics_I{inflation}.txt"
     shell:
         "workflow/scripts/alignment_stats.py {input} {output}"

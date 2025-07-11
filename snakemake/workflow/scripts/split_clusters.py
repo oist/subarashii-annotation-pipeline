@@ -17,7 +17,7 @@ Version:
 """
 
 import argparse
-import pathlib
+from pathlib import Path
 import statistics
 from collections import Counter, defaultdict
 from Bio import SeqIO
