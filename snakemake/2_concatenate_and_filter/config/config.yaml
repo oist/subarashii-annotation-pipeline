@@ -1,0 +1,6 @@
+---
+dataset: "dataset_test_I18_Normal"
+msa_postfix: ".faa"
+inflation: "1.8"
+mafft:
+  threads: 4

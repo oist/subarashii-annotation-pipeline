@@ -9,17 +9,6 @@ rule all:
         "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
         expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"])
 
-
-#    shell:
-#        """
-#        for d in 'results/{config["dataset"]}}/mcl/*'; do
-#            mkdir -p ../2_inference/resources/{config["dataset"]}/clusers
-#            for f in $d/*.; do
-#            
-#            done
-#        done
-#        """
-
 rule get_all_proteomes:
     output:
         "resources/all_proteomes.tar.gz",
@@ -112,9 +101,19 @@ rule generate_shortcodes:
     shell:
         "workflow/scripts/rename_genomes.py {input} {output}"
 
+rule rename_proteins:
+    input:
+        "results/{dataset}/genome2abbrev.csv",
+        "resources/{dataset}/selected_proteomes"
+    output:
+        directory("results/{dataset}/proteomes"),
+        "results/{dataset}/sequenceid_new2original.csv"
+    shell:
+        "workflow/scripts/rename_proteins.py --map {input[0]} --in {input[1]} --out {output[0]} -t {output[1]}"
+
 rule cat_all_sequences:
     input:
-        "resources/{dataset}/selected_proteomes"
+        "results/{dataset}/proteomes"
     output:
         "results/{dataset}/all_proteomes.faa"
     shell:
@@ -192,7 +191,6 @@ rule split_mcl_clusters:
     input:
         fasta="results/{dataset}/all_proteomes.faa",
         cluster="results/{dataset}/mcl_clusters_I{inflation}.txt"
-        #cluster=expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"])
     output:
         directory("results/{dataset}/mcl/{inflation}")
     params:
@@ -225,39 +223,9 @@ rule eggnog_mapper:
         mem_mb_per_cpu=4000,
         runtime=2880
     params:
-        mode="diamond"
+        mode="diamond",
+        outputprefix="results/{dataset}/eggnog/annotations"
     shell:
         """
-        emapper.py -i {input.fasta} --cpu {threads} --data_dir {input.db} -m {params.mode} --output {output} --override
+        emapper.py -i {input.fasta} --cpu {threads} --data_dir {input.db} -m {params.mode} --output {params.outputprefix} --override
         """
-
-rule mafft_align:
-    input:
-        "results/{dataset}/mcl/{inflation}/Normal/{msa}.faa"
-    output:
-        "results/{dataset}/mafft/{inflation}/{msa}.aln"
-    threads: config["mafft"]["threads"]
-    resources:
-        mem_mb_per_cpu=4000,
-        runtime=600
-    shell:
-        "mafft --auto --thread {threads} {input} > {output}"
-
-rule trimal_trim:
-    input:
-        "results/{dataset}/mafft/{inflation}/{msa}.aln"
-    output:
-        "results/{dataset}/trimal/{inflation}/{msa}.trim"
-    resources:
-        mem_mb_per_cpu=3000,
-        runtime=600
-    shell:
-        "trimal -in {input} -out {output} -gt 0.1"
-
-rule alignment_statistics:
-    input:
-        "results/{dataset}/trimal/{inflation}/"
-    output:
-        "results/{dataset}/alignment_statistics_I{inflation}.txt"
-    shell:
-        "workflow/scripts/alignment_stats.py {input} {output}"

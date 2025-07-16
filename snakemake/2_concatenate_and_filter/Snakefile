@@ -1,0 +1,79 @@
+configfile: "config/config.yaml"
+
+import glob
+
+def get_msas(wildcards):
+    msas=[]
+    for file in glob.glob("resources/{}/*.faa".format(wildcards.dataset)):
+        msas.append(file.replace(".faa", ".trim").replace("resources", "results").replace(wildcards.dataset, wildcards.dataset+"/trimal"))
+    return msas
+
+rule all:
+    input:
+        expand("results/{dataset}/alignment_statistics.txt", dataset=config["dataset"])
+
+rule mafft_align:
+    input:
+        "resources/{dataset}/{msa}.faa" 
+    output:
+        "results/{dataset}/mafft/{msa}.aln"
+    threads: config["mafft"]["threads"]
+    resources:
+        mem_mb_per_cpu=4000,
+        runtime=600
+    shell:
+        "mafft --auto --thread {threads} {input} > {output}"
+
+rule trimal_trim:
+    input:
+        "results/{dataset}/mafft/{msa}.aln"
+    output:
+        "results/{dataset}/trimal/{msa}.trim"
+    resources:
+        mem_mb_per_cpu=3000,
+        runtime=600
+    shell:
+        "trimal -in {input} -out {output} -gt 0.1"
+
+rule alignment_statistics:
+    input:
+        get_msas
+    output:
+        "results/{dataset}/alignment_statistics.txt"
+    shell:
+        "workflow/scripts/alignment_stats.py {input} -o {output}"
+
+rule alignment_scoring:
+    input:
+        get_msas
+    output:
+        "results/{dataset}/family_scoring.txt"
+    shell:
+        "workflow/scripts/family_scoring.py {input} -o {output}"
+
+
+rule concatenate_msas_fasta:
+    input:
+        get_msas,
+        "results/{dataset}/family_scoring.txt"
+    output:
+        "results/{dataset}/concatenated.fa"
+    shell:
+        "workflow/scripts/concatenate.py -i {input[0]} -o {output} -f fasta -m {input[1]}"
+
+rule concatenate_msas_phylip:
+    input:
+        get_msas,
+        "results/{dataset}/family_scoring.txt"
+    output:
+        "results/{dataset}/concatenated.phylip"
+    shell:
+        "workflow/scripts/concatenate.py -i {input[0]} -o {output} -f phylip -m {input[1]}"
+
+rule select_topscoring_msas_for_phylobayes:
+    input:
+        get_msas
+    output:
+        "results/{dataset}/"
+    shell:
+        "workflow/scripts/..."

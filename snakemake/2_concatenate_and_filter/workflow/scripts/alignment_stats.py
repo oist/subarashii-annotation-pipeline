@@ -17,6 +17,7 @@ Version:
     - v0.1 (2025-07-09)
 """
 import argparse
+import glob
 import sys, subprocess, pathlib, statistics
 from collections import Counter
 from Bio import SeqIO
@@ -29,20 +30,15 @@ def ungapped_len(record):
 
 def main():
     parser = argparse.ArgumentParser(descritpiton=__doc__, formatter_class=argparse.RawHelpTextFormatter)
-    parser.add_argument("input", help="input direcotry with msa alignments")
-    parser.add_argument("output", help="output file to save statistics in")
+    parser.add_argument("input", help="input directory with msa alignments or paths to msa alignemnts to be included", nargs="+")
+    parser.add_argument("-o", "--output", help="output file to save statistics in")
     args = parser.parse_args()
-    res_dir   = pathlib.Path(conf_get("dirs", "result_dir"))
-    align_dir = res_dir / f"families/{infl}/{subset}"
-    out_tsv   = res_dir / f"families/{infl}/alignment_details.tsv"
 
-    if not align_dir.exists():
-        sys.exit(f"[error] alignment folder not found: {align_dir}")
-
-    trim_files = sorted(align_dir.glob("*.trim"))
+    trim_files = args.input
+    if len(args.input) == 1:
+        trim_files = sorted(glob.glob("{}/*".format(args.input)))
     if not trim_files:
         sys.exit(f"[error] no .trim files in {align_dir}")
-
 
     rows = []
     for trim in trim_files:
@@ -66,8 +62,7 @@ def main():
             "Yes" if has_paralog else "No"
         ))
 
-    out_tsv.parent.mkdir(parents=True, exist_ok=True)
-    with out_tsv.open("w") as f:
+    with open(args.output, "w") as f:
         f.write("family\tnseqs\tlongest\tshortest\tmedian\tparalog_in_species\n")
         for r in rows:
             f.write("\t".join(map(str, r)) + "\n")
