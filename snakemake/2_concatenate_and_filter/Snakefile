@@ -10,9 +10,13 @@ def get_msas(wildcards):
 
 rule all:
     input:
-        expand("results/{dataset}/alignment_statistics.txt", dataset=config["dataset"])
+        expand("results/{dataset}/alignment_statistics.txt", dataset=config["dataset"]),
+        expand("results/{dataset}/family_scoring.txt", dataset=config["dataset"]),
+        expand("results/{dataset}/phylobayes_inputs", dataset=config["dataset"]),
+        expand("results/{dataset}/concatenated.phylip", dataset=config["dataset"]),
+        expand("results/{dataset}/concatenated.fa", dataset=config["dataset"])
 
-rule mafft_align:
+rule align_msas_with_mafft:
     input:
         "resources/{dataset}/{msa}.faa" 
     output:
@@ -24,7 +28,7 @@ rule mafft_align:
     shell:
         "mafft --auto --thread {threads} {input} > {output}"
 
-rule trimal_trim:
+rule trim_msas_with_trimal:
     input:
         "results/{dataset}/mafft/{msa}.aln"
     output:
@@ -35,45 +39,60 @@ rule trimal_trim:
     shell:
         "trimal -in {input} -out {output} -gt 0.1"
 
-rule alignment_statistics:
+rule msas_statistics:
     input:
         get_msas
     output:
         "results/{dataset}/alignment_statistics.txt"
+    params:
+        inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/alignment_stats.py {input} -o {output}"
+        "workflow/scripts/alignment_stats.py -i {params.inputdir} -o {output}"
 
-rule alignment_scoring:
+rule msas_scoring:
     input:
         get_msas
     output:
         "results/{dataset}/family_scoring.txt"
+    params:
+        inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/family_scoring.py {input} -o {output}"
+        "workflow/scripts/family_scoring.py -i {params.inputdir} -o {output}"
 
-
-rule concatenate_msas_fasta:
+rule filter_msas:
     input:
         get_msas,
-        "results/{dataset}/family_scoring.txt"
+        scoring="results/{dataset}/family_scoring.txt"
+    output:
+        directory("results/{dataset}/filtered")
+    params:
+        inputdir="results/{dataset}/trimal/"
+    shell:
+        "workflow/scripts/filter_by_universality.py -i {params.inputdir} -m {input.scoring} -o {output}"
+
+rule concatenate_filtered_msas_fasta:
+    input:
+        "results/{dataset}/filtered"
     output:
         "results/{dataset}/concatenated.fa"
     shell:
-        "workflow/scripts/concatenate.py -i {input[0]} -o {output} -f fasta -m {input[1]}"
+        "workflow/scripts/concatenate.py -i {input} -o {output} -f fasta"
 
-rule concatenate_msas_phylip:
+rule concatenate_filtered_msas_phylip:
     input:
-        get_msas,
-        "results/{dataset}/family_scoring.txt"
+        "results/{dataset}/filtered"
     output:
         "results/{dataset}/concatenated.phylip"
     shell:
-        "workflow/scripts/concatenate.py -i {input[0]} -o {output} -f phylip -m {input[1]}"
+        "workflow/scripts/concatenate.py -i {input} -o {output} -f phylip"
 
 rule select_topscoring_msas_for_phylobayes:
     input:
-        get_msas
+        get_msas,
+        scoring="results/{dataset}/family_scoring.txt"
     output:
-        "results/{dataset}/"
+        directory("results/{dataset}/phylobayes_inputs")
+    params:
+        inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/..."
+        "workflow/scripts/select_topscoring_for_pb.py -i {params.inputdir} -o {output} -m {input.scoring}"

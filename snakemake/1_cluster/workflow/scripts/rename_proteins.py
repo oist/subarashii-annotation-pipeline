@@ -83,7 +83,9 @@ def rename_and_map(in_faa, out_faa, prefix, gene_map_fh):
         rec.id = new_id
         rec.description = ""               # header will be >new_id only
 
-        gene_map_fh.write(f"{new_id} {old_header}\n")
+        # TODO csv or tsv?
+        # TODO include file name (accession ID) as well?
+        gene_map_fh.write(f"{new_id}\t{old_header}\n")
         records.append(rec)
 
     SeqIO.write(records, out_faa, "fasta")

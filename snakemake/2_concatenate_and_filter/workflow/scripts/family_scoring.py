@@ -18,20 +18,20 @@ Version:
 """
 import argparse
 import glob
-import sys, subprocess, pathlib, statistics, math
+import os, sys, subprocess, pathlib, statistics, math
 from collections import Counter, defaultdict
 from Bio import SeqIO
 
+def ungapped(rec):
+    return len(str(rec.seq).replace("-", ""))
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawHelpTextFormatter)
-    parser.add_argument("input", help="Direcotry containing msas or list of msa files to evaluate", nargs="+")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("-i", "--input", help="Direcotry containing msas", required=True)
     parser.add_argument("-o", "--output", help="Output tsv file", default="family_scores.tsv")
     args = parser.parse_args()
 
-    trim_path = args.input
-    if len(args.input) == 1:
-        trim_paths = sorted(glob.glob("{}/*".format(args.input)))
+    trim_paths = sorted(glob.glob("{}/*".format(args.input)))
     if not trim_paths:
         sys.exit(f"[error] no .trim files in {ALIGN_DIR}")
 
@@ -39,11 +39,8 @@ def main():
     total_species_set = set()
     fam_data = {}
 
-    def ungapped(rec):
-        return len(str(rec.seq).replace("-", ""))
-
     for trim in trim_paths:
-        fam = trim.stem.split(".")[0]          # gf123 from gf123.trim
+        fam = os.path.basename(trim).split(".")[0]          # gf123 from gf123.trim
         recs = list(SeqIO.parse(trim, "fasta"))
         if not recs:
             continue
@@ -97,7 +94,7 @@ def main():
         for r in sorted(rows, key=lambda x: x[-1], reverse=True):
             f.write("\t".join(map(str, r)) + "\n")
 
-    print(f"[family_scoring] wrote {OUT_TSV} ({len(rows)} families)")
+    print(f"[family_scoring] wrote {args.output} ({len(rows)} families)")
 
 if __name__ == "__main__":
     main()

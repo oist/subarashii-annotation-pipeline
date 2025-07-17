@@ -18,31 +18,27 @@ Version:
 """
 import argparse
 import glob
-import sys, subprocess, pathlib, statistics
+import os, sys, statistics
 from collections import Counter
 from Bio import SeqIO
 
-# ── helpers ───────────────────────────────────────────────────────
+# helpers
 def ungapped_len(record):
     return len(str(record.seq).replace("-", ""))
 
-# ── iterate files ────────────────────────────────────────────────
-
 def main():
-    parser = argparse.ArgumentParser(descritpiton=__doc__, formatter_class=argparse.RawHelpTextFormatter)
-    parser.add_argument("input", help="input directory with msa alignments or paths to msa alignemnts to be included", nargs="+")
-    parser.add_argument("-o", "--output", help="output file to save statistics in")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("-i", "--input", help="input directory with msa alignments", required=True)
+    parser.add_argument("-o", "--output", help="output file to save statistics into", default="alignment_statistics.tsv")
     args = parser.parse_args()
 
-    trim_files = args.input
-    if len(args.input) == 1:
-        trim_files = sorted(glob.glob("{}/*".format(args.input)))
+    trim_files = sorted(glob.glob("{}/*".format(args.input)))
     if not trim_files:
         sys.exit(f"[error] no .trim files in {align_dir}")
 
     rows = []
     for trim in trim_files:
-        fam = trim.stem.split(".")[0]              # gf123 from gf123.trim
+        fam = os.path.basename(trim).split(".")[0]              # gf123 from gf123.trim
         recs = list(SeqIO.parse(trim, "fasta"))
         if not recs:
             continue
@@ -67,7 +63,7 @@ def main():
         for r in rows:
             f.write("\t".join(map(str, r)) + "\n")
 
-    print(f"[align-stats] wrote {out_tsv} ({len(rows)} families)")
+    print(f"[align-stats] wrote {args.output} ({len(rows)} families)")
 
 
 if __name__ == "__main__":

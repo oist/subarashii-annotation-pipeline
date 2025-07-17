@@ -14,9 +14,7 @@ Version:
     - v0.1 (2025-07-16)
 """
 import argparse
-import sys, subprocess, statistics, pathlib, shutil
-from collections import defaultdict
-import pandas as pd
+import sys, glob, os, pathlib
 from Bio import SeqIO
 
 from Bio import AlignIO
@@ -36,64 +34,41 @@ def write_phylip_relaxed(records, outfile):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("-i", "--input", help="Directory with fasta files or list of fasta files to be concatenated", required=True, nargs="+")
-    parser.add_argument("-o", "--output", help="Output file name of concatenated sequences", default="concatenated")
-    parser.add_argument("-f", "--format", help="Sequence format (fasta or phylip)", choices=["phylip","fasta"], default="phylip")
-    parser.add_argument("-t", "--threshold", help="Universality threshold", default=0.8, type=float)
-    parser.add_argument("-m", "--metadata", help="Metadata tsv or csv file containing a per-sequence data")
-    parser.add_argument("-c", "--columnname", help="Name of column in metadata file for threshold", default="universality")
+    parser.add_argument("-i", "--input", help="Directory with fasta files to be concatenated", required=True)
+    parser.add_argument("-o", "--output", help="Output file name of concatenated sequences", default="concatenated.phylip")
+    parser.add_argument("-f", "--format", help="Output sequence format (fasta or phylip)", choices=["phylip","fasta"], default="phylip")
     args = parser.parse_args()
 
-    # --- load scores --------------------------------------------------
-    df = pd.read_csv(SCORE_TSV, sep="\t")
-    df["universality"] = df["n_species"] / df["n_species"].max()
-
-    # ---------- 1. Concatenation set ---------------------------------
-    concat_fams = df[df["universality"] >= 0.80]["family"].tolist()
-    print(f"[concat] {len(concat_fams)} families ≥80 % universality")
-
-    # first pass: discover universe of species
+    concat_fams = sorted(glob.glob(f"{args.input}/*.*"))
     all_species = set()
     for fam in concat_fams:
-        trim = ALIGN_DIR / f"{fam}.trim"
-        if not trim.exists():
-            continue
-        for r in SeqIO.parse(trim, "fasta"):
+        for r in SeqIO.parse(fam, "fasta"):
             all_species.add(r.id.split("_g")[0])
 
     all_species = sorted(all_species)
     concatenated_seqs = {sp: "" for sp in all_species}
 
     for fam in concat_fams:
-        trim = ALIGN_DIR / f"{fam}.trim"
-        if not trim.exists():
-            continue
-
-        # copy .trim once
-        dst = CONCAT_DIR / trim.name
-        if not dst.exists():
-            shutil.copy(trim, dst)
-
-        recs = list(SeqIO.parse(trim, "fasta"))
+        recs = list(SeqIO.parse(fam, "fasta"))
         fam_len = len(recs[0].seq)
         seq_by_species = {r.id.split("_g")[0]: str(r.seq) for r in recs}
 
         for sp in all_species:
             concatenated_seqs[sp] += seq_by_species.get(sp, "-" * fam_len)
 
-    # ------------- write concatenated fasta --------------------------
-    concat_faa = CONCAT_DIR / "concatenated.faa"
-    with concat_faa.open("w") as f:
-        for sp in all_species:
-            f.write(f">{sp}\n{concatenated_seqs[sp]}\n")
-    print(f"[concat] wrote {concat_faa}")
+    if args.format == "fasta":
+        # ------------- write concatenated fasta --------------------------
+        with open(args.output, "w") as f:
+            for sp in all_species:
+                f.write(f">{sp}\n{concatenated_seqs[sp]}\n")
+        print(f"[concat] wrote {args.output}")
 
-    # ------------- write concatenated PHYLIP-relaxed -----------------
-    concat_phy = CONCAT_DIR / "concatenated.phy"
-    records = [SeqRecord(Seq(seq), id=sp, description="") 
-               for sp, seq in concatenated_seqs.items()]
-    write_phylip_relaxed(records, concat_phy)
-    print(f"[concat] wrote {concat_phy} (PHYLIP-relaxed)")
+    if args.format == "phylip":
+        # ------------- write concatenated PHYLIP-relaxed -----------------
+        records = [SeqRecord(Seq(seq), id=sp, description="") 
+                   for sp, seq in concatenated_seqs.items()]
+        write_phylip_relaxed(records, args.output)
+        print(f"[concat] wrote {args.output} (PHYLIP-relaxed)")
 
 if __name__ == "__main__":
     main()
