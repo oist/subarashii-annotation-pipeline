@@ -1,0 +1,156 @@
+configfile: "config/config.yaml"
+
+import glob
+import os
+def get_phylobayes_result_files(wildcards):
+    msas=[]
+    for file in glob.glob("resources/{}/phylobayes_topfamilies/*.phylip".format(config["dataset"])):
+        base = os.path.basename(file).split(".phylip")[0]
+        for chain in config["phylobayes"]["chains"]:
+            msas.append("results/{}/phylobayes/{}_{}_{}_chain{}.done".format(config["dataset"], base, config["phylobayes"]["model"], config["phylobayes"]["exch"], chain))
+    return msas
+
+rule all:
+    input:
+        get_phylobayes_result_files,
+        expand("results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
+        expand("results/{dataset}/iqtree/concatenated.iqtree", dataset=config["dataset"]),
+        expand("results/{dataset}/alerax/reconciliations", dataset=config["dataset"])
+
+rule start_phylobayes_perfamily_chain1:
+    input:
+        "resources/{dataset}/phylobayes_topfamilies/{msa}.phylip" 
+    output:
+        "results/{dataset}/phylobayes/{msa}_{model}_{exch}_chain{chain}.done"
+    threads: 1
+    resources:
+        mem_mb_per_cpu=4000,
+        runtime=config["phylobayes"]["runtime"],
+        mpi="mpirun",
+        tasks=config["phylobayes"]["tasks"],
+        mpimodule=config["openmpi_module_name"]
+    params:
+        output_prefix="results/{dataset}/phylobayes/{msa}_{model}_{exch}_chain{chain}",
+        target_samples=config["phylobayes"]["target_samples"]
+    shell:
+        """
+        # load modules necessary for mpi
+        if [ -x {resources.mpimodule} ]; then
+            module load {resources.mpimodule}
+        fi
+
+        if [ -f {params.output_prefix}.treefile ]; then
+            SAMPLES=`wc -l {params.output_prefix}.treefile`
+            if [ "$SAMPLES" -eg "{params.target_samples}" ]; then
+               touch {output}
+               exit 0
+            fi
+        fi
+
+        # we didn't reach sufficient sampling yet
+        if [ -f {params.output_prefix}.run ]; then
+            {resources.mpi} -np {resources.tasks} pb_mpi {params.output_prefix}
+        else
+            {resources.mpi} -np {resources.tasks} pb_mpi -d {input} -{wildcards.model} -{wildcards.exch} -x 1 {params.target_samples} {params.output_prefix}
+        fi
+
+        SAMPLES=`wc -l {params.output_prefix}.treefile`
+        if [ "$SAMPLES" -eg "{params.target_samples}" ]; then
+            touch {output}
+            exit 0
+        fi
+        """
+
+rule start_iqtree_on_concatenate:
+    input:
+        "resources/{dataset}/concatenated.fa"
+    output:
+        "results/{dataset}/iqtree/concatenated.iqtree"
+    threads: config["iqtree"]["threads"]
+    resources:
+        mem_mb_per_cpu=8000,
+        runtime=1440
+    params:
+        output_prefix="results/{dataset}/iqtree/concatenated"
+    shell:
+        "iqtree -s {input} -m MFP -B 5000 -wbtl -nt {threads} --prefix {params.output_prefix}"
+
+rule start_phylobayes_on_concatenate:
+    input:
+        "resources/{dataset}/concatenated.phylip"
+    output:
+        "results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}.done"
+    threads: 1
+    resources:
+        mem_mb_per_cpu=8000,
+        runtime=1440,
+        mpi="mpirun",
+        tasks=config["phylobayes"]["tasks_concatenated"],
+        mpimodule=config["openmpi_module_name"]
+    params:
+        output_prefix="results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}",
+        target_samples=config["phylobayes"]["target_samples_concatenated"]
+    shell:
+        """
+        # load modules necessary for mpi
+        if [ -x {resources.mpimodule} ]; then
+            module load {resources.mpimodule}
+        fi
+
+        if [ -f {params.output_prefix}.treefile ]; then
+            SAMPLES=`wc -l {params.output_prefix}.treefile`
+            if [ "$SAMPLES" -eg "{params.target_samples}" ]; then
+               touch {output}
+               exit 0
+            fi
+        fi
+
+        # we didn't reach sufficient sampling yet
+        if [ -f {params.output_prefix}.run ]; then
+            {resources.mpi} -np {resources.tasks} pb_mpi {params.output_prefix}
+        else
+            {resources.mpi} -np {resources.tasks} pb_mpi -d {input} -{wildcards.model} {wildcards.exch} -x 1 {params.target_samples} {params.output_prefix}
+        fi
+
+        SAMPLES=`wc -l {params.output_prefix}.treefile`
+        if [ "$SAMPLES" -eg "{params.target_samples}" ]; then
+            touch {output}
+            exit 0
+        fi
+        """
+
+rule generate_alerax_family_file:
+    input:
+        get_phylobayes_result_files
+    output:
+        "results/{dataset}/alerax/families.txt"
+    params:
+        inputdir="results/{dataset}/phylobayes"
+    shell:
+        "scripts/generate.py -i {inputdir} -o {output}"
+
+rule start_alerax_perfamily:
+    input:
+        "results/{dataset}/alerax/families.txt"
+    output:
+        directory("results/{dataset}/alerax/reconciliations")
+    resources:
+        tasks=config["alerax"]["tasks"],
+        mpi="mpirun",
+        mpimodule=config["openmpi_module_name"]
+    shell:
+        """
+        # load modules necessary for mpi
+        if [ -x {resources.mpimodule} ]; then
+            module load {resources.mpimodule}
+        fi
+
+        {resources.mpi} -np {resources.tasks} alerax \
+        --families {input} \
+        --rec-model UndatedDTL \
+        --species-tree-search HYBRID \
+        -s MiniNJ \
+        --transfer-contraint PARENTS \
+        --prefix {params.output_prefix}
+        """
+

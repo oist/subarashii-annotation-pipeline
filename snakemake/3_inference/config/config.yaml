@@ -1,0 +1,18 @@
+---
+dataset: "dataset_test_I18_Normal"
+openmpi_module_name: "openmpi.gcc"
+phylobayes:
+  target_samples: 10000
+  target_samples_concatenated: 20000
+  tasks: 16
+  tasks_concatenated: 64
+  model: "cat"
+  exch: "lg"
+  chains: ["1","2"]
+  runtime: 1440
+iqtree:
+  threads: 16
+  runtime: 1440
+alerax:
+  tasks: 16
+  runtime: 1440
