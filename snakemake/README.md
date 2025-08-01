@@ -42,9 +42,11 @@ Edit it with focus on the variables `` and ``, to fit your case.
 
 ## Running pipeline
 
+If running on remote server, start snakemake from inside a virtual temrinal like `screen` or `tmux`.
+
 With slurm:
 ```
-snakemake --executor slurm -j 100 --profile profile/
+snakemake --executor slurm -j 20 --profile profile/
 ```
 
 Locally:

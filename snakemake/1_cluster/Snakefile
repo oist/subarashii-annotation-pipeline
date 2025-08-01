@@ -50,7 +50,7 @@ rule select_proteomes:
     output:
         directory("resources/{dataset}/selected_proteomes")
     shell:
-        "workflow/scripts/select_proteomes.sh {input[0]} {input[1]} {output}"
+        "scripts/select_proteomes.sh {input[0]} {input[1]} {output}"
 
 rule select_genomes:
     input:
@@ -59,7 +59,7 @@ rule select_genomes:
     output:
         directory("resources/{dataset}/selected_genomes")
     shell:
-        "workflow/scripts/select_genomes.sh {input[0]} {input[1]} {output}"
+        "scripts/select_genomes.sh {input[0]} {input[1]} {output}"
 
 rule get_bacterial_taxonomy_file:
     output:
@@ -99,7 +99,7 @@ rule generate_shortcodes:
     output:
         "results/{dataset}/genome2abbrev.csv"
     shell:
-        "workflow/scripts/rename_genomes.py {input} {output}"
+        "scripts/rename_genomes.py {input} {output}"
 
 rule rename_proteins:
     input:
@@ -109,7 +109,7 @@ rule rename_proteins:
         directory("results/{dataset}/proteomes"),
         "results/{dataset}/sequenceid_new2original.csv"
     shell:
-        "workflow/scripts/rename_proteins.py --map {input[0]} --in {input[1]} --out {output[0]} -t {output[1]}"
+        "scripts/rename_proteins.py --map {input[0]} --in {input[1]} --out {output[0]} -t {output[1]}"
 
 rule cat_all_sequences:
     input:
@@ -174,7 +174,7 @@ rule filter_and_convert_into_mcl_s_abc_format:
         evalue_cut=config["diamond"]["evalue_cut"],
         cov_cut=config["diamond"]["cov_cut"]
     shell:
-        "workflow/scripts/filter_and_convert.py -i {input} -o {output} -e {params.evalue_cut} -c {params.cov_cut}"
+        "scripts/filter_and_convert.py -i {input} -o {output} -e {params.evalue_cut} -c {params.cov_cut}"
 
 rule mcl_sweep:
     input:
@@ -196,7 +196,7 @@ rule split_mcl_clusters:
     params:
         huge_cutoff=300
     shell:
-        "workflow/scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -o {output}"
+        "scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -o {output}"
 
 rule download_eggnog_diamond_database:
     output:

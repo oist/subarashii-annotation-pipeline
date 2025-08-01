@@ -12,7 +12,7 @@ rule all:
     input:
         expand("results/{dataset}/alignment_statistics.txt", dataset=config["dataset"]),
         expand("results/{dataset}/family_scoring.txt", dataset=config["dataset"]),
-        expand("results/{dataset}/phylobayes_inputs", dataset=config["dataset"]),
+        expand("results/{dataset}/top_families", dataset=config["dataset"]),
         expand("results/{dataset}/concatenated.phylip", dataset=config["dataset"]),
         expand("results/{dataset}/concatenated.fa", dataset=config["dataset"])
 
@@ -47,7 +47,7 @@ rule msas_statistics:
     params:
         inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/alignment_stats.py -i {params.inputdir} -o {output}"
+        "scripts/alignment_stats.py -i {params.inputdir} -o {output}"
 
 rule msas_scoring:
     input:
@@ -57,7 +57,7 @@ rule msas_scoring:
     params:
         inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/family_scoring.py -i {params.inputdir} -o {output}"
+        "scripts/family_scoring.py -i {params.inputdir} -o {output}"
 
 rule filter_msas:
     input:
@@ -68,7 +68,7 @@ rule filter_msas:
     params:
         inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/filter_by_universality.py -i {params.inputdir} -m {input.scoring} -o {output}"
+        "scripts/filter_by_universality.py -i {params.inputdir} -m {input.scoring} -o {output}"
 
 rule concatenate_filtered_msas_fasta:
     input:
@@ -76,7 +76,7 @@ rule concatenate_filtered_msas_fasta:
     output:
         "results/{dataset}/concatenated.fa"
     shell:
-        "workflow/scripts/concatenate.py -i {input} -o {output} -f fasta"
+        "scripts/concatenate.py -i {input} -o {output} -f fasta"
 
 rule concatenate_filtered_msas_phylip:
     input:
@@ -84,15 +84,15 @@ rule concatenate_filtered_msas_phylip:
     output:
         "results/{dataset}/concatenated.phylip"
     shell:
-        "workflow/scripts/concatenate.py -i {input} -o {output} -f phylip"
+        "scripts/concatenate.py -i {input} -o {output} -f phylip"
 
 rule select_topscoring_msas_for_phylobayes:
     input:
         get_msas,
         scoring="results/{dataset}/family_scoring.txt"
     output:
-        directory("results/{dataset}/phylobayes_inputs")
+        directory("results/{dataset}/top_families")
     params:
         inputdir="results/{dataset}/trimal/"
     shell:
-        "workflow/scripts/select_topscoring_for_pb.py -i {params.inputdir} -o {output} -m {input.scoring}"
+        "scripts/select_topscoring_for_pb.py -i {params.inputdir} -o {output} -m {input.scoring}"

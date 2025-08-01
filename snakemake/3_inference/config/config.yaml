@@ -1,18 +1,30 @@
 ---
 dataset: "dataset_test_I18_Normal"
 openmpi_module_name: "openmpi.gcc"
+extra_modules: "/apps/unit/SzollosiU/.modulefiles"
 phylobayes:
   target_samples: 10000
   target_samples_concatenated: 20000
   tasks: 16
   tasks_concatenated: 64
+  mem: 8000
   model: "cat"
   exch: "lg"
   chains: ["1","2"]
-  runtime: 1440
+  runtime: 2880       
+  module_name: "phylobayesmpi"
+  path: "/apps/unit/SzollosiU/phylobayesmpi/1.9/bin/pb_mpi"
+  burnin: 5000
 iqtree:
   threads: 16
   runtime: 1440
+  module_name: "iqtree3"
+  mem: 8000
+  model: "LG+G4"
+  model_concatenated: "LG+C60+G4"
+  path: "/apps/unit/SzollosiU/iqtree3/3.0.1/bin/iqtree3"
 alerax:
   tasks: 16
   runtime: 1440
+  module_name: "alerax"
+  path: "/apps/unit/SzollosiU/alerax/1.2.0/bin/alerax"
