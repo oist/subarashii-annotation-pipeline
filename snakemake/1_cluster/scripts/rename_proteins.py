@@ -8,7 +8,7 @@ Outputs written to --out
     geneid_mapping.txt       new_gene_id old_full_header
     mapping_autogen.csv      only when --auto is used
 
-Auhtors:
+Authors:
     - Adrian A. Davin
 """
 
@@ -48,6 +48,9 @@ def read_mapping(path):
         dialect = csv.Sniffer().sniff(fh.readline())
         fh.seek(0)
         for cols in csv.reader(fh, dialect):
+            if cols[0] == "accession":
+                # header line
+                continue
             if len(cols) == 2:
                 rows.append((cols[0], cols[1], ""))
             elif len(cols) >= 3:
@@ -110,14 +113,15 @@ def main():
         for original, short, taxa in tqdm(mapping,
                                           desc="FASTA files",
                                           unit="file"):
-
-            in_faa = glob.glob(r"{}/{}*.fa*".format(args.infolder, original))
+            # GB_ and RS_ may not be present if genome downloaded form NCBI
+            original = original.replace("GB_", "").replace("RS_", "")
+            in_faa = glob.glob(r"{}/*{}*.fa*".format(args.infolder, original))
             if len(in_faa) < 1:
                 missing_files.append(args.infolder / original)
                 continue
             if len(in_faa) > 1:
                 print("Accession column {} in mapping file doesn't uniquely determine sequences filename. Exiting...".format(args.infolder / original))
-                exit(2)
+                return 2
 
             out_faa = args.outfolder / f"{short}.faa"
             rename_and_map(in_faa[0], out_faa, short, gm)
@@ -126,8 +130,7 @@ def main():
             g2a_rows.append((accession, short, taxa))
 
 
-    if len(missing_files) > 1:
-        # if only one, probably it's the header line, if more, it's a problem
+    if len(missing_files) > 0:
         print("Error: Check your data. The following genome files that were in the mapping file could not be found:")
         for f in missing_files:
             print(f)

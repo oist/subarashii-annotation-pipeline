@@ -36,7 +36,7 @@ echo "[log] Changing directory to 3_inference/resources/${DATASET}..."
 cd 3_inference/resources/${DATASET}
 
 echo "[log] Symlinking 2_concatenate_and_filter/results/${DATASET}/concatenated.fasta to 3_inference pipeline's resources directory..."
-ln -s ../../../2_concatenate_and_filter/results/${DATASET}/concatenated.fasta
+ln -s ../../../2_concatenate_and_filter/results/${DATASET}/concatenated.fa
 
 echo "[log] Symlinking 2_concatenate_and_filter/results/${DATASET}/concatenated.phylip to to 3_inference pipeline's resources directory..."
 ln -s ../../../2_concatenate_and_filter/results/${DATASET}/concatenated.phylip
@@ -49,7 +49,7 @@ cd top_families
 
 echo "[log] Symlinking sequences under 2_concatenate_and_filter/results/$DATASET/top_families to 3_inference pipeline's resources directory..."
 for f in ../../../../2_concatenate_and_filter/results/$DATASET/top_families/*.phylip; do
-	echo "ln -s $f"
+	ln -s $f
 done
 
 echo "[action required] Please update 3_inference/config/config.yaml with the dataset name: $DATASET to perform the third step of the pipeline on it."

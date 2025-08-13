@@ -22,8 +22,8 @@ rule all:
         get_phylobayes_per_fam_result_files,
         expand("results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
         expand("results/{dataset}/iqtree/concatenated.iqtree", dataset=config["dataset"]),
-        expand("results/{dataset}/alerax_iqtree/reconciliations", dataset=config["dataset"]),
-        expand("results/{dataset}/alerax_pb/reconciliations", dataset=config["dataset"])
+        expand("results/{dataset}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"]),
+        expand("results/{dataset}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"])
 
 rule start_phylobayes_perfamily:
     input:
@@ -249,7 +249,7 @@ rule start_alerax_pb:
     input:
         "results/{dataset}/alerax_pb/families.txt"
     output:
-        directory("results/{dataset}/alerax_pb/reconciliations")
+        "results/{dataset}/alerax_pb/per_fam_likelihoods.txt"
     resources:
         tasks=config["alerax"]["tasks"],
         mpi="mpirun",
@@ -289,7 +289,7 @@ rule start_alerax_iqtree:
     input:
         "results/{dataset}/alerax_iqtree/families.txt"
     output:
-        directory("results/{dataset}/alerax_iqtree/reconciliations")
+        "results/{dataset}/alerax_iqtree/per_fam_likelihoods.txt"
     params:
         outputdir="results/{dataset}/alerax_iqtree/"
     resources:

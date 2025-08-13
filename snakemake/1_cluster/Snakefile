@@ -1,5 +1,8 @@
 configfile: "config/config.yaml"
 
+def get_accession_ids_file(wildcards):
+    return "resources/{}/{}".format(wildcards.dataset, config["accession_ids_file"])
+
 rule all:
     input:
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
@@ -11,42 +14,64 @@ rule all:
 
 rule get_all_proteomes:
     output:
-        "resources/all_proteomes.tar.gz",
+        r"resources/all_proteomes{gtdb_version,\d+}.tar.gz",
+    resources:
+        runtime=1440
     shell:
-        "wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' -O {output}"
+        """
+        if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' -O {output}
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/gtdb_r{config[gtdb_version]}_rep_genomes.protein.faa.tar.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/gtdb_r{config[gtdb_version]}_rep_genomes.protein.faa.tar.gz' -O {output}
+        else
+            echo "Proteomes not found on GTDB server"
+            exit -111
+        fi
+        """
 
 rule get_all_genomes:
     output:
-        "resources/all_genomes.tar.gz"
+        r"resources/all_genomes{gtdb_version,\d+}.tar.gz"
+    resources:
+        runtime=1440
     shell:
-        "wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{params.gtdb_version}.tar.gz' -O {output}"
+        """
+        if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{config[gtdb_version]}.tar.gz' -O {output}
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/gtdb_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/gtdb_r{config[gtdb_version]}.tar.gz' -O {output}
+        else
+            echo "Genomes not found on GTDB server"
+            exit -111
+        fi
+        """
 
 rule extract_all_proteomes:
     input:
-        "resources/all_proteomes.tar.gz"
+        "resources/all_proteomes{gtdb_version}.tar.gz"
     output:
-        directory(config["all_proteomes_outdir"])
+        directory(r"resources/all_proteomes{gtdb_version,\d+}")
     shell:
         """
-        mkdir {config[all_proteomes_outdir]}
-        tar -xzf {input} -C {config[all_proteomes_outdir]} --strip-components=1
+        mkdir {output}
+        tar -xzf {input} -C {output} --strip-components=1
         """
 
 rule extract_all_genomes:
     input:
-        "resources/all_genomes.tar.gz"
+        "resources/all_genomes{gtdb_version}.tar.gz"
     output:
-        directory(config["all_genomes_outdir"])
+        directory(r"resources/all_genomes{gtdb_version,\d+}")
     shell:
         """
-        mkdir {config[all_genomes_outdir]}
-        tar -xzf {input} -C {config[all_genomes_outdir]} --strip-components=1
+        mkdir {output}
+        tar -xzf {input} -C {output} --strip-components=1
         """
 
 rule select_proteomes:
     input:
-        "resources/{dataset}/list_of_accession_ids.txt",
-        "resources/all_proteomes"
+        get_accession_ids_file,
+        "resources/all_proteomes{gtdbversion}".format(gtdbversion=config["gtdb_version"])
     output:
         directory("resources/{dataset}/selected_proteomes")
     shell:
@@ -54,8 +79,8 @@ rule select_proteomes:
 
 rule select_genomes:
     input:
-        "resources/{dataset}/list_of_accession_ids.txt",
-        "resources/all_genomes"
+        get_accession_ids_file,
+        "resources/all_genomes{gtdbversion}".format(gtdbversion=config["gtdb_version"])
     output:
         directory("resources/{dataset}/selected_genomes")
     shell:
@@ -65,7 +90,28 @@ rule get_bacterial_taxonomy_file:
     output:
         "resources/bac120_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
     shell:
-        "wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output} || wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}"
+        """
+        if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
+            mv {output} resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
+            gzip resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv'; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
+            mv {output} resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
+            gzip resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
+
+        else
+            echo "GTDB taxonomy file could not be found"
+            exit -111
+        fi
+        """
 	
 rule unzip_bacterial_taxonomy_file:
     input:
@@ -77,19 +123,21 @@ rule unzip_bacterial_taxonomy_file:
 
 rule create_genome2taxa:
     input:
-        "resources/{dataset}/list_of_accession_ids.txt",
+        get_accession_ids_file,
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"])
     output:
         "results/{dataset}/genome2taxa.csv"
+    params:
+        manual_taxa="resources/{config[dataset]}/{config[manually_add_taxa_file]}"
     shell:
         """
         REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
         grep -E "$REGEXP" {input[1]} | sed -E 's/\\t+/,/g' > {output}
-        if [ -s "{config[manually_add_taxa_file]}" ]; then
-             echo "Appending contents of file {config[manually_add_taxa_file]} to {output}"
-             cat {config[manually_add_taxa_file]} >> {output}
+        if [ -s "{params.manual_taxa}" ]; then
+             echo "Appending contents of file {params.manual_taxa} to {output}"
+             cat {params.manual_taxa} >> {output}
         else
-             echo "{config[manually_add_taxa_file]} not existing or empty"
+             echo "{params.manual_taxa} not existing or empty"
         fi
         """
 

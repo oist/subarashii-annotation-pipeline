@@ -4,3 +4,10 @@ default-resources:
   mem_mb_per_cpu: 2000
   runtime: 60
   tasks: 1
+set-resources:
+  get_all_proteomes:
+    # Downloading 20-120 GB file
+    runtime: 1440
+  get_all_genomes:
+    # Downloading 20-120 GB file
+    runtime: 1440

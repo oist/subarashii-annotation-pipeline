@@ -1,5 +1,5 @@
 ---
-dataset: "dataset_test_I18_Normal"
+dataset: "brooting_focal_I18_Normal"
 openmpi_module_name: "openmpi.gcc"
 extra_modules: "/apps/unit/SzollosiU/.modulefiles"
 phylobayes:

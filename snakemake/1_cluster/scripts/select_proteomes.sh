@@ -15,9 +15,15 @@ mkdir ${OUTDIR}
 for f in `cat ${IDS}`; do
 	if [ -f ${BASEDIR}/bacteria/${f}_protein.faa ]; then
 		cp ${BASEDIR}/bacteria/${f}_protein.faa ${OUTDIR}/
+	elif [ -f ${BASEDIR}/bacteria/${f}_protein.faa.gz ]; then
+		cp ${BASEDIR}/bacteria/${f}_protein.faa.gz ${OUTDIR}/
+		gzip -d ${OUTDIR}/${f}_protein.faa.gz
 	else
 		if [ -f ${BASEDIR}/archaea/${f}_protein.faa ]; then
 			cp ${BASEDIR}/archaea/${f}_protein.faa ${OUTDIR}/
+		elif [ -f ${BASEDIR}/archaea/${f}_protein.faa ]; then
+			cp ${BASEDIR}/archaea/${f}_protein.faa.gz ${OUTDIR}/
+			gzip -d ${OUTDIR}/${f}_protein.faa.gz
 		else
 			i=`echo $f | sed 's/GB_//' | sed 's/RS_//'`
 			echo "$f not found, so downloading from NCBI using ID: $i"
