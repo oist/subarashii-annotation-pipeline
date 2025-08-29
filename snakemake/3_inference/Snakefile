@@ -158,7 +158,7 @@ rule start_phylobayes_on_concatenate:
     threads: 1
     resources:
         mem_mb_per_cpu=8000,
-        runtime=1440,
+        runtime=config["phylobayes"]["runtime"],
         mpi="mpirun",
         tasks=config["phylobayes"]["tasks_concatenated"],
         mpimodule=config["openmpi_module_name"]

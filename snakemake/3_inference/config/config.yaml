@@ -11,13 +11,13 @@ phylobayes:
   model: "cat"
   exch: "lg"
   chains: ["1","2"]
-  runtime: 2880       
+  runtime: 5760
   module_name: "phylobayesmpi"
   path: "/apps/unit/SzollosiU/phylobayesmpi/1.9/bin/pb_mpi"
   burnin: 5000
 iqtree:
   threads: 16
-  runtime: 1440
+  runtime: 5760
   module_name: "iqtree3"
   mem: 8000
   model: "LG+G4"
@@ -25,6 +25,6 @@ iqtree:
   path: "/apps/unit/SzollosiU/iqtree3/3.0.1/bin/iqtree3"
 alerax:
   tasks: 16
-  runtime: 1440
+  runtime: 5760
   module_name: "alerax"
   path: "/apps/unit/SzollosiU/alerax/1.2.0/bin/alerax"

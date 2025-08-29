@@ -15,8 +15,6 @@ rule all:
 rule get_all_proteomes:
     output:
         r"resources/all_proteomes{gtdb_version,\d+}.tar.gz",
-    resources:
-        runtime=1440
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
@@ -32,8 +30,6 @@ rule get_all_proteomes:
 rule get_all_genomes:
     output:
         r"resources/all_genomes{gtdb_version,\d+}.tar.gz"
-    resources:
-        runtime=1440
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
@@ -112,7 +108,34 @@ rule get_bacterial_taxonomy_file:
             exit -111
         fi
         """
-	
+
+rule get_archaeal_taxonomy_file:
+    output:
+        "resources/ar53_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+    shell:
+        """
+        if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
+            mv {output} resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
+            gzip resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv'; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
+            mv {output} resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
+            gzip resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
+
+        else
+            echo "GTDB taxonomy file could not be found"
+            exit -111
+        fi
+        """
+
 rule unzip_bacterial_taxonomy_file:
     input:
         "resources/bac120_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
@@ -121,18 +144,38 @@ rule unzip_bacterial_taxonomy_file:
     shell:
         "gzip -d {input}"
 
+rule unzip_archaeal_taxonomy_file:
+    input:
+        "resources/ar53_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+    output:
+        "resources/ar53_taxonomy_r{}.tsv".format(config["gtdb_version"])
+    shell:
+        "gzip -d {input}"
+
 rule create_genome2taxa:
     input:
         get_accession_ids_file,
-        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"])
+        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
+        "resources/ar53_taxonomy_r{}.tsv".format(config["gtdb_version"])
     output:
         "results/{dataset}/genome2taxa.csv"
     params:
         manual_taxa="resources/{config[dataset]}/{config[manually_add_taxa_file]}"
     shell:
         """
-        REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
-        grep -E "$REGEXP" {input[1]} | sed -E 's/\\t+/,/g' > {output}
+        #REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
+        #grep -E "$REGEXP" {input[1]} | sed -E 's/\\t+/,/g' > {output}
+        #grep -E "$REGEXP" {input[2]} | sed -E 's/\\t+/,/g' >> {output}
+        # the approach above doesn't work for big lists of accession IDs
+        while read LINE; do
+             RES=`grep "$LINE" {input[1]}`
+             if [ -x "$RES" ]; then
+                 RES=`grep "$LINE" {input[2]}`
+             fi
+             if [ ! -x "$RES" ]; then
+                 echo "$RES" | sed -E 's/\\t+/,/g' >> {output}
+             fi
+        done < {input[0]}
         if [ -s "{params.manual_taxa}" ]; then
              echo "Appending contents of file {params.manual_taxa} to {output}"
              cat {params.manual_taxa} >> {output}
@@ -255,13 +298,18 @@ rule download_eggnog_diamond_database:
     params:
         outdir="resources/eggnog_diamond_db"
     shell:
-        "mkdir -p {params.outdir}"
-        "download_eggnog_data.py -y -f --data_dir {params.outdir}"
+        """
+        mkdir -p {params.outdir}
+        download_eggnog_data.py -y -f --data_dir {params.outdir}
+        """
 
 rule eggnog_mapper:
     input:
         fasta="results/{dataset}/all_proteomes.faa",
-        db="resources/eggnog_diamond_db"
+        db="resources/eggnog_diamond_db/eggnog.db",
+        dmnd="resources/eggnog_diamond_db/eggnog_proteins.dmnd",
+        taxadb="resources/eggnog_diamond_db/eggnog.taxa.db",
+        pkl="resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl" 
     output:
         "results/{dataset}/eggnog/annotations.emapper.annotations",
         "results/{dataset}/eggnog/annotations.emapper.hits",
@@ -272,8 +320,9 @@ rule eggnog_mapper:
         runtime=2880
     params:
         mode="diamond",
-        outputprefix="results/{dataset}/eggnog/annotations"
+        outputprefix="results/{dataset}/eggnog/annotations",
+        db="resources/eggnog_diamond_db"
     shell:
         """
-        emapper.py -i {input.fasta} --cpu {threads} --data_dir {input.db} -m {params.mode} --output {params.outputprefix} --override
+        emapper.py -i {input.fasta} --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
         """

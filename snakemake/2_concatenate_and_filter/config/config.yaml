@@ -1,6 +1,4 @@
 ---
 dataset: "brooting_focal_I18_Normal"
-msa_postfix: ".faa"
-inflation: "1.8"
 mafft:
   threads: 4
