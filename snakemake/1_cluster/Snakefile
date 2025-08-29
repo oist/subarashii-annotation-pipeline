@@ -169,10 +169,10 @@ rule create_genome2taxa:
         # the approach above doesn't work for big lists of accession IDs
         while read LINE; do
              RES=`grep "$LINE" {input[1]}`
-             if [ -x "$RES" ]; then
+             if [ -z "$RES" ]; then
                  RES=`grep "$LINE" {input[2]}`
              fi
-             if [ ! -x "$RES" ]; then
+             if [ ! -z "$RES" ]; then
                  echo "$RES" | sed -E 's/\\t+/,/g' >> {output}
              fi
         done < {input[0]}
