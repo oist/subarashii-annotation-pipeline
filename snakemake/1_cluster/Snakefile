@@ -6,15 +6,15 @@ def get_accession_ids_file(wildcards):
 rule all:
     input:
         "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
-        "resources/{}/selected_proteomes".format(config["dataset"]),
+        "resources/{}/selected_genomes_protein".format(config["dataset"]),
         "results/{}/genome2abbrev.csv".format(config["dataset"]),
         expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
         "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
         expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"])
 
-rule get_all_proteomes:
+rule get_all_genomes_protein:
     output:
-        r"resources/all_proteomes{gtdb_version,\d+}.tar.gz",
+        r"resources/all_genomes_protein{gtdb_version,\d+}.tar.gz",
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
@@ -27,9 +27,9 @@ rule get_all_proteomes:
         fi
         """
 
-rule get_all_genomes:
+rule get_all_genomes_na:
     output:
-        r"resources/all_genomes{gtdb_version,\d+}.tar.gz"
+        r"resources/all_genomes_na{gtdb_version,\d+}.tar.gz"
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
@@ -42,45 +42,45 @@ rule get_all_genomes:
         fi
         """
 
-rule extract_all_proteomes:
+rule extract_all_genomes_protein:
     input:
-        "resources/all_proteomes{gtdb_version}.tar.gz"
+        "resources/all_genomes_protein{gtdb_version}.tar.gz"
     output:
-        directory(r"resources/all_proteomes{gtdb_version,\d+}")
+        directory(r"resources/all_genomes_protein{gtdb_version,\d+}")
     shell:
         """
         mkdir {output}
         tar -xzf {input} -C {output} --strip-components=1
         """
 
-rule extract_all_genomes:
+rule extract_all_genomes_na:
     input:
-        "resources/all_genomes{gtdb_version}.tar.gz"
+        "resources/all_genomes_na{gtdb_version}.tar.gz"
     output:
-        directory(r"resources/all_genomes{gtdb_version,\d+}")
+        directory(r"resources/all_genomes_na{gtdb_version,\d+}")
     shell:
         """
         mkdir {output}
         tar -xzf {input} -C {output} --strip-components=1
         """
 
-rule select_proteomes:
+rule select_genomes_protein:
     input:
         get_accession_ids_file,
-        "resources/all_proteomes{gtdbversion}".format(gtdbversion=config["gtdb_version"])
+        "resources/all_genomes_protein{gtdbversion}".format(gtdbversion=config["gtdb_version"])
     output:
-        directory("resources/{dataset}/selected_proteomes")
+        directory("resources/{dataset}/selected_genomes_protein")
     shell:
-        "scripts/select_proteomes.sh {input[0]} {input[1]} {output}"
+        "scripts/select_genomes_protein.sh {input[0]} {input[1]} {output}"
 
-rule select_genomes:
+rule select_genomes_na:
     input:
         get_accession_ids_file,
-        "resources/all_genomes{gtdbversion}".format(gtdbversion=config["gtdb_version"])
+        "resources/all_genomes_na{gtdbversion}".format(gtdbversion=config["gtdb_version"])
     output:
-        directory("resources/{dataset}/selected_genomes")
+        directory("resources/{dataset}/selected_genomes_na")
     shell:
-        "scripts/select_genomes.sh {input[0]} {input[1]} {output}"
+        "scripts/select_genomes_na.sh {input[0]} {input[1]} {output}"
 
 rule get_bacterial_taxonomy_file:
     output:
@@ -119,6 +119,9 @@ rule get_archaeal_taxonomy_file:
 
         elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
             wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}
+
+        elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar122_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
+            wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar122_taxonomy_r{config[gtdb_version]}.tsv.gz' -O {output}
 
         elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv' >/dev/null 2>&1; then
             wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
@@ -160,7 +163,7 @@ rule create_genome2taxa:
     output:
         "results/{dataset}/genome2taxa.csv"
     params:
-        manual_taxa="resources/{config[dataset]}/{config[manually_add_taxa_file]}"
+        manual_taxa="resources/{}/{}".format(config["dataset"], config["manually_add_taxa_file"])
     shell:
         """
         #REGEXP=`tr '\\n' '|' < {input[0]} | sed 's/|$//'`
@@ -168,9 +171,9 @@ rule create_genome2taxa:
         #grep -E "$REGEXP" {input[2]} | sed -E 's/\\t+/,/g' >> {output}
         # the approach above doesn't work for big lists of accession IDs
         while read LINE; do
-             RES=`grep "$LINE" {input[1]}`
+             RES=`grep "$LINE" {input[1]} || echo ""`
              if [ -z "$RES" ]; then
-                 RES=`grep "$LINE" {input[2]}`
+                 RES=`grep "$LINE" {input[2]} || echo ""`
              fi
              if [ ! -z "$RES" ]; then
                  echo "$RES" | sed -E 's/\\t+/,/g' >> {output}
@@ -195,34 +198,39 @@ rule generate_shortcodes:
 rule rename_proteins:
     input:
         "results/{dataset}/genome2abbrev.csv",
-        "resources/{dataset}/selected_proteomes"
+        "resources/{dataset}/selected_genomes_protein"
     output:
-        directory("results/{dataset}/proteomes"),
+        directory("results/{dataset}/genomes_protein"),
         "results/{dataset}/sequenceid_new2original.csv"
     shell:
         "scripts/rename_proteins.py --map {input[0]} --in {input[1]} --out {output[0]} -t {output[1]}"
 
 rule cat_all_sequences:
     input:
-        "results/{dataset}/proteomes"
+        "results/{dataset}/genomes_protein"
     output:
-        "results/{dataset}/all_proteomes.faa"
+        "results/{dataset}/all_genomes_protein.faa"
     shell:
-        "cat {input}/*.faa > {output}"
+        """
+        #for f in {input}/*.faa; do
+        #    cat $f >> {output}
+        #done
+        find {input}/ -iname "*.faa" -exec cat {{}} >> {output} \\;
+        """
 
 rule make_diamond_db:
     input:
-        "results/{dataset}/all_proteomes.faa"
+        "results/{dataset}/all_genomes_protein.faa"
     output:
-        "results/{dataset}/proteomes.dmnd"
+        "results/{dataset}/genomes_protein.dmnd"
     threads: config["diamond"]["threads"]
     shell:
         "diamond makedb --in {input} -d {output} --threads {threads}"
 
 rule diamond_all_vs_all:
     input:
-        db="results/{dataset}/proteomes.dmnd",
-        query="results/{dataset}/all_proteomes.faa"
+        db="results/{dataset}/genomes_protein.dmnd",
+        query="results/{dataset}/all_genomes_protein.faa"
     output:
         "results/{dataset}/all_vs_all_wo_selfhits.tsv"
     resources:
@@ -243,7 +251,7 @@ rule diamond_all_vs_all:
 
 rule add_self_hits_to_diamond_all_vs_all:
     input:
-        query="results/{dataset}/all_proteomes.faa",
+        query="results/{dataset}/all_genomes_protein.faa",
         diamond="results/{dataset}/all_vs_all_wo_selfhits.tsv"
     output:
         "results/{dataset}/all_vs_all.tsv"
@@ -280,7 +288,7 @@ rule mcl_sweep:
 
 rule split_mcl_clusters:
     input:
-        fasta="results/{dataset}/all_proteomes.faa",
+        fasta="results/{dataset}/all_genomes_protein.faa",
         cluster="results/{dataset}/mcl_clusters_I{inflation}.txt"
     output:
         directory("results/{dataset}/mcl/{inflation}")
@@ -305,7 +313,7 @@ rule download_eggnog_diamond_database:
 
 rule eggnog_mapper:
     input:
-        fasta="results/{dataset}/all_proteomes.faa",
+        fasta="results/{dataset}/all_genomes_protein.faa",
         db="resources/eggnog_diamond_db/eggnog.db",
         dmnd="resources/eggnog_diamond_db/eggnog_proteins.dmnd",
         taxadb="resources/eggnog_diamond_db/eggnog.taxa.db",

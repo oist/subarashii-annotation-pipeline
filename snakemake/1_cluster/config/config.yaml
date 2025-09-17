@@ -1,13 +1,13 @@
 ---
-dataset: "small"
+dataset: "dataset_1007genomes"
 accession_ids_file: "list_of_accession_ids.txt"
-gtdb_version: "89"
+gtdb_version: "202"
 gtdb_subversion: "0"
 gtdb_base_url: "https://data.ace.uq.edu.au/public/gtdb/data/releases/"
 # manually add taxa information that is not present in GTDB's taxonomy file
 manually_add_taxa_file: "manually_add_taxa.txt"
 diamond:
-  threads: 16
+  threads: 32
   evalue_cut: 1e-5
   # percent:
   cov_cut: 50 

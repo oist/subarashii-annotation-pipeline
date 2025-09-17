@@ -2,7 +2,7 @@
 default-resources:
   slurm_partition: "compute"
   mem_mb_per_cpu: 2000
-  runtime: 60
+  runtime: 120
   tasks: 1
 set-resources:
   get_all_proteomes:
@@ -11,3 +11,16 @@ set-resources:
   get_all_genomes:
     # Downloading 20-120 GB file
     runtime: 1440
+  select_proteomes:
+    runtime: 1440
+  create_genome2taxa:
+    runtime: 600
+  make_diamond_db:
+    runtime: 600
+  diamond_all_vs_all:
+    runtime: 5760
+    mem_mb_per_cpu: 10000
+  rename_proteins:
+    runtime: 600
+  eggnog_mapper: 
+    runtime: 5760

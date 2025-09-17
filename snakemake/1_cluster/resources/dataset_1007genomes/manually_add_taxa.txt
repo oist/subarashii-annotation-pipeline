@@ -1,0 +1,1 @@
+GCF_004343465.1,d__Bacteria;p__Firmicutes_A;c__Thermoanaerobacteria;o__Thermoanaerobacterales;f__Thermoanaerobacteraceae;g__Thermoanaerobacterium;s__Thermoanaerobacterium thermosaccharolyticum
