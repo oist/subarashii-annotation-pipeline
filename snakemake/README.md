@@ -4,9 +4,12 @@
 
 Clone this repository (in case of HPC application: into a storage space that is writable by the compute nodes):
 ```
-cd /workpath
-git clone git@github.com:oist/subarashii-annotation-pipeline.git
-cd subarashii-annotation-pipeline/snakemake
+cd /to-your-work-directory
+
+git clone https://github.com/oist/subarashii-annotation-pipeline.git
+cd subarashii-annotation-pipeline/
+git checkout -b snakemake origin/snakemake
+cd snakemake
 ```
 
 ## Installing Snakemake
@@ -14,7 +17,10 @@ cd subarashii-annotation-pipeline/snakemake
 Installing Minforge (formerly known as Mambaforge):
 ```
 wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+# during the instlattaion below, choose an installation directory writable in 
+# an HPC setting and with enough storage space to install future dependencies
 bash Miniforge3-$(uname)-$(uname -m).sh
+# to make the changes take effect, logout and login or execute:
 source ~/.bashrc
 ```
 
@@ -31,7 +37,7 @@ mamba create -f env.yml
 
 Activate environment:
 ```
-conda activate snakemake_env
+mamba activate snakemake_env
 ```
 
 ## Preparing your dataset
@@ -48,7 +54,10 @@ dataset: "my_awesome_dataset"
 
 Create a file named `list_of_accession_ids.txt` inside the directory `1_cluster/resources/my_awesome_dataset` that has one accession id per line and then a newline character, e.g.:
 ```
-
+RS_GCF_000020505.1
+GB_GCA_004322215.1
+RS_GCF_000419585.1
+GB_GCA_001803045.1
 ```
 
 Decide which GTDB version you want to use and modify `1_cluster/config/config.yaml` accordingly, e.g. for GTDB v89.0, you would set:
@@ -63,9 +72,9 @@ Some accession IDs may not be found in GTDB, but they are in NCBI (in which case
 
 Some use-case and environment-related settings are collected in the `config/config.yml` file.
 
-Edit it with focus on the variables `` and ``, to fit your case.
+Edit it with focus on the variables `evalue_cut`, `cov_cut`, `runtime`, etc. to fit to your case.
 
-## Running snakemake (conceptually, don't do it yet)
+## How to run snakemake in general (conceptually, don't do it yet)
 
 If running on remote server, start snakemake from inside a virtual temrinal like `screen` or `tmux`.
 
@@ -79,7 +88,7 @@ Locally:
 snakemake --cores 1
 ```
 
-## Running the pipeline (do this)
+## Running the pipeline
 
 The pipeline is split into 3 subpipeline, due to the way Snakemake works (it has to know the names of the input files, so we cannot have rules doing something with e.g. the gene families, when we don't even know yet, how many gene families we have and what are their names):
 - `1_cluster`

@@ -38,8 +38,10 @@ for f in `cat ${IDS}`; do
 			if [ -f ziptemp/ncbi_dataset/data/${i}/protein.faa ]; then
 				cp ziptemp/ncbi_dataset/data/${i}/protein.faa ${OUTDIR}/${i}_protein.faa
 			else
-				echo "no aa sequence available for ${i}, copying the na sequence"
-				cp ziptemp/ncbi_dataset/data/${i}/${i}*_genomic.fna ${OUTDIR}/${i}_genomic.fna
+				echo "no aa sequence available for ${i}, please provide a valid accession ID"
+				exit -1
+				#echo "no aa sequence available for ${i}, copying the na sequence"
+				#cp ziptemp/ncbi_dataset/data/${i}/${i}*_genomic.fna ${OUTDIR}/${i}_genomic.fna
 			fi
 			rm -rf ziptemp
 			rm ${i}.zip
