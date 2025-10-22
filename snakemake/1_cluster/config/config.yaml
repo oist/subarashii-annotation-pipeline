@@ -1,7 +1,7 @@
 ---
-dataset: "dataset_1007genomes"
+dataset: "dataset_1007genomes_r226"
 accession_ids_file: "list_of_accession_ids.txt"
-gtdb_version: "202"
+gtdb_version: "226"
 gtdb_subversion: "0"
 gtdb_base_url: "https://data.ace.uq.edu.au/public/gtdb/data/releases/"
 # manually add taxa information that is not present in GTDB's taxonomy file

@@ -4,23 +4,23 @@ import glob
 
 def get_msas(wildcards):
     msas=[]
-    for file in glob.glob("resources/{}/*.faa".format(wildcards.dataset)):
-        msas.append(file.replace(".faa", ".trim").replace("resources", "results").replace(wildcards.dataset, wildcards.dataset+"/trimal"))
+    for file in glob.glob("resources/{}/{}/*.faa".format(wildcards.dataset, wildcards.cluster)):
+        msas.append(file.replace(".faa", ".trim").replace("resources", "results").replace(wildcards.cluster, wildcards.cluster+"/trimal"))
     return msas
 
 rule all:
     input:
-        expand("results/{dataset}/alignment_statistics.txt", dataset=config["dataset"]),
-        expand("results/{dataset}/family_scoring.txt", dataset=config["dataset"]),
-        expand("results/{dataset}/top_families", dataset=config["dataset"]),
-        expand("results/{dataset}/concatenated.phylip", dataset=config["dataset"]),
-        expand("results/{dataset}/concatenated.fa", dataset=config["dataset"])
+        expand("results/{dataset}/{cluster}/alignment_statistics.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/family_scoring.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/top_families", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/concatenated.universality.phylip", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/concatenated.universality.fa", dataset=config["dataset"], cluster=["mcl", "eggnog"])
 
 rule align_msas_with_mafft:
     input:
-        "resources/{dataset}/{msa}.faa" 
+        "resources/{dataset}/{cluster}/{msa}.faa" 
     output:
-        "results/{dataset}/mafft/{msa}.aln"
+        "results/{dataset}/{cluster}/mafft/{msa}.aln"
     threads: config["mafft"]["threads"]
     resources:
         mem_mb_per_cpu=4000,
@@ -30,9 +30,9 @@ rule align_msas_with_mafft:
 
 rule trim_msas_with_trimal:
     input:
-        "results/{dataset}/mafft/{msa}.aln"
+        "results/{dataset}/{cluster}/mafft/{msa}.aln"
     output:
-        "results/{dataset}/trimal/{msa}.trim"
+        "results/{dataset}/{cluster}/trimal/{msa}.trim"
     resources:
         mem_mb_per_cpu=3000,
         runtime=600
@@ -43,9 +43,9 @@ rule msas_statistics:
     input:
         get_msas
     output:
-        "results/{dataset}/alignment_statistics.txt"
+        "results/{dataset}/{cluster}/alignment_statistics.txt"
     params:
-        inputdir="results/{dataset}/trimal/"
+        inputdir="results/{dataset}/{cluster}/trimal/"
     shell:
         "scripts/alignment_stats.py -i {params.inputdir} -o {output}"
 
@@ -53,46 +53,46 @@ rule msas_scoring:
     input:
         get_msas
     output:
-        "results/{dataset}/family_scoring.txt"
+        "results/{dataset}/{cluster}/family_scoring.txt"
     params:
-        inputdir="results/{dataset}/trimal/"
+        inputdir="results/{dataset}/{cluster}/trimal/"
     shell:
         "scripts/family_scoring.py -i {params.inputdir} -o {output}"
 
 rule filter_msas:
     input:
         get_msas,
-        scoring="results/{dataset}/family_scoring.txt"
+        scoring="results/{dataset}/{cluster}/family_scoring.txt"
     output:
-        directory("results/{dataset}/filtered")
+        directory("results/{dataset}/{cluster}/filtered_by_universality")
     params:
-        inputdir="results/{dataset}/trimal/"
+        inputdir="results/{dataset}/{cluster}/trimal/"
     shell:
         "scripts/filter_by_universality.py -i {params.inputdir} -m {input.scoring} -o {output}"
 
 rule concatenate_filtered_msas_fasta:
     input:
-        "results/{dataset}/filtered"
+        "results/{dataset}/{cluster}/filtered_by_universality"
     output:
-        "results/{dataset}/concatenated.fa"
+        "results/{dataset}/{cluster}/concatenated.universality.fa"
     shell:
         "scripts/concatenate.py -i {input} -o {output} -f fasta"
 
 rule concatenate_filtered_msas_phylip:
     input:
-        "results/{dataset}/filtered"
+        "results/{dataset}/{cluster}/filtered_by_universality"
     output:
-        "results/{dataset}/concatenated.phylip"
+        "results/{dataset}/{cluster}/concatenated.universality.phylip"
     shell:
         "scripts/concatenate.py -i {input} -o {output} -f phylip"
 
 rule select_topscoring_msas_for_phylobayes:
     input:
         get_msas,
-        scoring="results/{dataset}/family_scoring.txt"
+        scoring="results/{dataset}/{cluster}/family_scoring.txt"
     output:
-        directory("results/{dataset}/top_families")
+        directory("results/{dataset}/{cluster}/top_families")
     params:
-        inputdir="results/{dataset}/trimal/"
+        inputdir="results/{dataset}/{cluster}/trimal/"
     shell:
         "scripts/select_topscoring_for_pb.py -i {params.inputdir} -o {output} -m {input.scoring}"

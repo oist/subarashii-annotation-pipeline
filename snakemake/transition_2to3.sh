@@ -32,24 +32,30 @@ fi
 echo "[log] Creating directory $DATASET for dataset in 3_inference pipeline..."
 mkdir -p 3_inference/resources/${DATASET}
 
-echo "[log] Changing directory to 3_inference/resources/${DATASET}..."
 cd 3_inference/resources/${DATASET}
 
-echo "[log] Symlinking 2_concatenate_and_filter/results/${DATASET}/concatenated.fasta to 3_inference pipeline's resources directory..."
-ln -s ../../../2_concatenate_and_filter/results/${DATASET}/concatenated.fa
+for cluster in {mcl,eggnog}; do
+	echo "[log] Changing directory to 3_inference/resources/${DATASET}/${cluster}..."
+	mkdir ${cluster}
+	cd ${cluster}
 
-echo "[log] Symlinking 2_concatenate_and_filter/results/${DATASET}/concatenated.phylip to to 3_inference pipeline's resources directory..."
-ln -s ../../../2_concatenate_and_filter/results/${DATASET}/concatenated.phylip
+	echo "[log] Symlinking 2_concatenate_and_filter/results/${DATASET}/${cluster}/concatenated.universality.fasta to 3_inference pipeline's resources directory..."
+	ln -s ../../../../2_concatenate_and_filter/results/${DATASET}/${cluster}/concatenated.universality.fa
 
-echo "[log] Creating directory top_families in 3_inference pipeline..."
-mkdir -p top_families
+	echo "[log] Symlinking 2_concatenate_and_filter/results/${DATASET}/${cluster}/concatenated.universality.phylip to to 3_inference pipeline's resources directory..."
+	ln -s ../../../../2_concatenate_and_filter/results/${DATASET}/${cluster}/concatenated.universality.phylip
 
-echo "[log] Changing directory to 3_inference/resources/${DATASET}/top_families..."
-cd top_families
+	echo "[log] Creating directory top_families in 3_inference pipeline..."
+	mkdir -p top_families
 
-echo "[log] Symlinking sequences under 2_concatenate_and_filter/results/$DATASET/top_families to 3_inference pipeline's resources directory..."
-for f in ../../../../2_concatenate_and_filter/results/$DATASET/top_families/*.phylip; do
-	ln -s $f
+	echo "[log] Changing directory to 3_inference/resources/${DATASET}/${cluster}/top_families..."
+	cd top_families
+
+	echo "[log] Symlinking sequences under 2_concatenate_and_filter/results/$DATASET/${cluster}/top_families to 3_inference pipeline's resources directory..."
+	for f in ../../../../../2_concatenate_and_filter/results/$DATASET/${cluster}/top_families/*.phylip; do
+		ln -s $f
+	done
+	cd ../..
 done
 
 echo "[action required] Please update 3_inference/config/config.yaml with the dataset name: $DATASET to perform the third step of the pipeline on it."

@@ -4,32 +4,34 @@ import glob
 import os
 def get_phylobayes_per_fam_result_files(wildcards):
     msas=[]
-    for file in glob.glob("resources/{}/top_families/*.phylip".format(config["dataset"])):
+    for file in glob.glob("resources/{}/{}/top_families/*.phylip".format(wildcards.dataset, wildcards.cluster)):
         base = os.path.basename(file).split(".phylip")[0]
         for chain in config["phylobayes"]["chains"]:
-            msas.append("results/{}/phylobayes_per_fam/{}_{}_{}_chain{}.done".format(config["dataset"], base, config["phylobayes"]["model"], config["phylobayes"]["exch"], chain))
+            msas.append("results/{}/{}/phylobayes_per_fam/{}_{}_{}_chain{}.done".format(wildcards.dataset, wildcards.cluster, base, config["phylobayes"]["model"], config["phylobayes"]["exch"], chain))
     return msas
 
 def get_iqtree_per_fam_result_files(wildcards):
     msas=[]
-    for file in glob.glob("resources/{}/top_families/*.phylip".format(config["dataset"])):
+    for file in glob.glob("resources/{}/{}/top_families/*.phylip".format(wildcards.dataset, wildcards.cluster)):
         base = os.path.basename(file).split(".phylip")[0]
-        msas.append("results/{}/iqtree_per_fam/{}_{}.iqtree".format(config["dataset"], base, config["iqtree"]["model"]))
+        if base != "gf70799":
+            msas.append("results/{}/{}/iqtree_per_fam/{}_{}.iqtree".format(wildcards.dataset, wildcards.cluster, base, config["iqtree"]["model"]))
     return msas
 
 rule all:
     input:
-        get_phylobayes_per_fam_result_files,
-        expand("results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
-        expand("results/{dataset}/iqtree/concatenated.iqtree", dataset=config["dataset"]),
-        expand("results/{dataset}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"]),
-        expand("results/{dataset}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"])
+        #get_phylobayes_per_fam_result_files,
+        expand("results/{dataset}/{cluster}/phylobayes_burnin_cut", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], cluster=["mcl", "eggnog"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
+        expand("results/{dataset}/{cluster}/iqtree/concatenated.universality.iqtree", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"])
 
 rule start_phylobayes_perfamily:
     input:
-        "resources/{dataset}/top_families/{msa}.phylip" 
+        "resources/{dataset}/{cluster}/top_families/{msa}.phylip" 
     output:
-        "results/{dataset}/phylobayes_per_fam/{msa}_{model}_{exch}_chain{chain}.done"
+        "results/{dataset}/{cluster}/phylobayes_per_fam/{msa}_{model}_{exch}_chain{chain}.done"
     threads: 1
     resources:
         mem_mb_per_cpu=4000,
@@ -38,7 +40,7 @@ rule start_phylobayes_perfamily:
         tasks=config["phylobayes"]["tasks"],
         mpimodule=config["openmpi_module_name"]
     params:
-        output_prefix="results/{dataset}/phylobayes_per_fam/{msa}_{model}_{exch}_chain{chain}",
+        output_prefix="results/{dataset}/{cluster}/phylobayes_per_fam/{msa}_{model}_{exch}_chain{chain}",
         target_samples=config["phylobayes"]["target_samples"]
     shell:
         """
@@ -84,9 +86,9 @@ rule start_phylobayes_perfamily:
 
 rule start_iqtree_perfamily:
     input:
-        "resources/{dataset}/top_families/{msa}.phylip" 
+        "resources/{dataset}/{cluster}/top_families/{msa}.phylip" 
     output:
-        protected("results/{dataset}/iqtree_per_fam/{msa}_{model}.iqtree")
+        protected("results/{dataset}/{cluster}/iqtree_per_fam/{msa}_{model}.iqtree")
     threads: config["iqtree"]["threads"]
     resources:
         mem_mb_per_cpu=config["iqtree"]["mem"],
@@ -118,15 +120,15 @@ rule start_iqtree_perfamily:
 
 rule start_iqtree_on_concatenate:
     input:
-        "resources/{dataset}/concatenated.fa"
+        "resources/{dataset}/{cluster}/concatenated.universality.fa"
     output:
-        protected("results/{dataset}/iqtree/concatenated.iqtree")
+        protected("results/{dataset}/{cluster}/iqtree/concatenated.universality.iqtree")
     threads: config["iqtree"]["threads"]
     resources:
         mem_mb_per_cpu=config["iqtree"]["mem"],
         runtime=config["iqtree"]["runtime"]
     params:
-        output_prefix="results/{dataset}/iqtree/concatenated"
+        output_prefix="results/{dataset}/{cluster}/iqtree/concatenated.universality"
     shell:
         """
         # load other sources of modules if set
@@ -152,9 +154,9 @@ rule start_iqtree_on_concatenate:
 
 rule start_phylobayes_on_concatenate:
     input:
-        "resources/{dataset}/concatenated.phylip"
+        "resources/{dataset}/{cluster}/concatenated.universality.phylip"
     output:
-        "results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}.done"
+        "results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}.done"
     threads: 1
     resources:
         mem_mb_per_cpu=8000,
@@ -163,7 +165,7 @@ rule start_phylobayes_on_concatenate:
         tasks=config["phylobayes"]["tasks_concatenated"],
         mpimodule=config["openmpi_module_name"]
     params:
-        output_prefix="results/{dataset}/phylobayes/concatenated_{model}_{exch}_chain{chain}",
+        output_prefix="results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}",
         target_samples=config["phylobayes"]["target_samples_concatenated"]
     shell:
         """
@@ -211,9 +213,9 @@ rule cut_burnin_from_phylobayes_treelist:
     input:
         get_phylobayes_per_fam_result_files
     output:
-        directory("results/{dataset}/phylobayes_burnin_cut/")
+        directory("results/{dataset}/{cluster}/phylobayes_burnin_cut/")
     params:
-        inputdir="results/{dataset}/phylobayes_per_fam/"
+        inputdir="results/{dataset}/{cluster}/phylobayes_per_fam/"
     shell:
         """
         if [ ! -d "{output}" ]; then
@@ -227,9 +229,9 @@ rule cut_burnin_from_phylobayes_treelist:
 
 rule generate_alerax_pb_family_file:
     input:
-        "results/{dataset}/phylobayes_burnin_cut"
+        "results/{dataset}/{cluster}/phylobayes_burnin_cut"
     output:
-        "results/{dataset}/alerax_pb/families.txt"
+        "results/{dataset}/{cluster}/alerax_pb/families.txt"
     shell:
         "scripts/generate_families.py -i {input} -o {output}"
 
@@ -238,24 +240,25 @@ rule generate_alerax_iqtree_family_file:
     input:
         get_iqtree_per_fam_result_files
     output:
-        "results/{dataset}/alerax_iqtree/families.txt"
+        "results/{dataset}/{cluster}/alerax_iqtree/families.txt"
     params:
-        inputdir="results/{dataset}/iqtree_per_fam/"
+        inputdir="results/{dataset}/{cluster}/iqtree_per_fam/"
     shell:
         "scripts/generate_families.py -i {params.inputdir} -o {output}"
 
 
 rule start_alerax_pb:
     input:
-        "results/{dataset}/alerax_pb/families.txt"
+        "results/{dataset}/{cluster}/alerax_pb/families.txt"
     output:
-        "results/{dataset}/alerax_pb/per_fam_likelihoods.txt"
+        "results/{dataset}/{cluster}/alerax_pb/per_fam_likelihoods.txt"
     resources:
         tasks=config["alerax"]["tasks"],
         mpi="mpirun",
-        mpimodule=config["openmpi_module_name"]
+        mpimodule=config["openmpi_module_name"],
+        runtime=config["alerax"]["runtime"]
     params:
-        outputdir="results/{dataset}/alerax_pb/"
+        outputdir="results/{dataset}/{cluster}/alerax_pb/"
     shell:
         """
         # load modules necessary for mpi
@@ -287,15 +290,16 @@ rule start_alerax_pb:
 
 rule start_alerax_iqtree:
     input:
-        "results/{dataset}/alerax_iqtree/families.txt"
+        "results/{dataset}/{cluster}/alerax_iqtree/families.txt"
     output:
-        "results/{dataset}/alerax_iqtree/per_fam_likelihoods.txt"
+        "results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt"
     params:
-        outputdir="results/{dataset}/alerax_iqtree/"
+        outputdir="results/{dataset}/{cluster}/alerax_iqtree/"
     resources:
         tasks=config["alerax"]["tasks"],
         mpi="mpirun",
-        mpimodule=config["openmpi_module_name"]
+        mpimodule=config["openmpi_module_name"],
+        runtime=config["alerax"]["runtime"]
     shell:
         """
         # load modules necessary for mpi

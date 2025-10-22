@@ -1,4 +1,4 @@
 ---
-dataset: "brooting_focal_I18_Normal"
+dataset: "dataset_1007genomes_r226_I18_Normal"
 mafft:
   threads: 4

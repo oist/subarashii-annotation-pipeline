@@ -10,7 +10,8 @@ rule all:
         "results/{}/genome2abbrev.csv".format(config["dataset"]),
         expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
         "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
-        expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"])
+        expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
+        "results/{}/cog_clusters".format(config["dataset"])
 
 rule get_all_genomes_protein:
     output:
@@ -293,7 +294,7 @@ rule split_mcl_clusters:
     output:
         directory("results/{dataset}/mcl/{inflation}")
     params:
-        huge_cutoff=300
+        huge_cutoff=str(int(5 * sum(1 for _ in open("resources/{}/{}".format(config["dataset"], config["accession_ids_file"])))))
     shell:
         "scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -o {output}"
 
@@ -311,6 +312,7 @@ rule download_eggnog_diamond_database:
         download_eggnog_data.py -y -f --data_dir {params.outdir}
         """
 
+# break into genomes and not all
 rule eggnog_mapper:
     input:
         fasta="results/{dataset}/all_genomes_protein.faa",
@@ -333,4 +335,17 @@ rule eggnog_mapper:
     shell:
         """
         emapper.py -i {input.fasta} --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
+        """
+
+rule cluster_into_cogs:
+    input:
+        eggnog_annotations="results/{dataset}/eggnog/annotations.emapper.annotations",
+        fasta_dir="results/{dataset}/genomes_protein"
+    output:
+        directory("results/{dataset}/cog_clusters")
+    params:
+        huge_cutoff=str(int(5 * sum(1 for _ in open("resources/{}/{}".format(config["dataset"], config["accession_ids_file"])))))
+    shell:
+        """
+        scripts/create_cog_clusters.py -e {input.eggnog_annotations} -f {input.fasta_dir} -o {output} -c {params.huge_cutoff} 
         """

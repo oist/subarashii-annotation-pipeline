@@ -45,16 +45,20 @@ fi
 
 NEW_DATASET=`echo "${DATASET}_I${INFLATION}_${CLUSTERTYPE}" | sed 's/\.//'`
 
-echo "[log] Creating directory $NEW_DATASET for dataset in 2_concatenate_and_filter pipeline..."
-mkdir -p 2_concatenate_and_filter/resources/${NEW_DATASET}
+echo "[log] Creating directory $NEW_DATASET for dataset in 2_concatenate_and_filter pipeline ..."
+mkdir -p 2_concatenate_and_filter/resources/${NEW_DATASET}/{mcl,eggnog}
 
-echo "[log] Changing directory to 2_concatenate_and_filter/resources/${NEW_DATASET}..."
-cd 2_concatenate_and_filter/resources/${NEW_DATASET}
+echo "[log] Changing directory to 2_concatenate_and_filter/resources/${NEW_DATASET}/mcl ..."
+cd 2_concatenate_and_filter/resources/${NEW_DATASET}/mcl
 
-echo "[log] Symlinking sequences under 1_cluster/results/$DATASET/mcl/$INFLATION/$CLUSTERTYPE to 2_concatenate_and_filter pipeline's resources directory..."
-for f in ../../../1_cluster/results/$DATASET/mcl/$INFLATION/$CLUSTERTYPE/*.faa; do
-	ln -s $f
-done
+echo "[log] Symlinking sequences under 1_cluster/results/$DATASET/mcl/$INFLATION/$CLUSTERTYPE to 2_concatenate_and_filter pipeline's resources directory ..."
+find ../../../../1_cluster/results/$DATASET/mcl/$INFLATION/$CLUSTERTYPE/ -iname "*.faa" -exec ln -s {} \;
+
+echo "[log] Changing directory to 2_concatenate_and_filter/resources/${NEW_DATASET}/eggnog ..."
+cd ../eggnog
+
+echo "[log] Symlinking sequences under 1_cluster/results/$DATASET/eggnog/$CLUSTERTYPE to 2_concatenate_and_filter pipeline's resources directory ..."
+find ../../../../1_cluster/results/$DATASET/cog_clusters/$CLUSTERTYPE/ -iname "*.faa" -exec ln -s {} \;
 
 echo "[action required] Please update 2_concatenate_and_filter/config/config.yaml with the new dataset name: $NEW_DATASET to perform the second step of the pipeline on it."
 
