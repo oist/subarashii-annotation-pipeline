@@ -80,7 +80,7 @@ If running on remote server, start snakemake from inside a virtual temrinal like
 
 With slurm:
 ```
-snakemake --executor slurm -j 20 --profile profile/
+snakemake --executor slurm -j 20 --profile profile/ --slurm-keep-successful-logs
 ```
 
 Locally:

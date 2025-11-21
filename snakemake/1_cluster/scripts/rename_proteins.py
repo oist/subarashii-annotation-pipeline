@@ -91,7 +91,9 @@ def rename_and_map(in_faa, out_faa, prefix, gene_map_fh):
         gene_map_fh.write(f"{new_id}\t{old_header}\n")
         records.append(rec)
 
-    SeqIO.write(records, out_faa, "fasta")
+    #SeqIO.write(records, out_faa, "fasta")
+    # do not insert line breaks in the sequence
+    SeqIO.write(records, out_faa, "fasta-2line")
 
 
 # ---------- main ----------

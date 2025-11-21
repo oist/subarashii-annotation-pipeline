@@ -1,0 +1,9 @@
+---
+default-resources:
+  slurm_partition: "compute"
+  mem_mb_per_cpu: 2000
+  runtime: 120
+  tasks: 1
+set-resources:
+  eggnog_mapper: 
+    runtime: 5760

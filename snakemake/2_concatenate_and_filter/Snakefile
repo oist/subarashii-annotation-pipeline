@@ -96,3 +96,4 @@ rule select_topscoring_msas_for_phylobayes:
         inputdir="results/{dataset}/{cluster}/trimal/"
     shell:
         "scripts/select_topscoring_for_pb.py -i {params.inputdir} -o {output} -m {input.scoring}"
+

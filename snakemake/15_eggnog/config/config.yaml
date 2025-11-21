@@ -1,0 +1,4 @@
+---
+dataset: "whole_gtdb_r226"
+eggnog:
+  threads: 60

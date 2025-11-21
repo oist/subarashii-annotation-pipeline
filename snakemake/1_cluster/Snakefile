@@ -11,7 +11,8 @@ rule all:
         expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
         "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
         expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
-        "results/{}/cog_clusters".format(config["dataset"])
+        "results/{}/cog_clusters".format(config["dataset"]),
+        "results/{}/eggnog_cog_counts_table.csv".format(config["dataset"])
 
 rule get_all_genomes_protein:
     output:
@@ -348,4 +349,18 @@ rule cluster_into_cogs:
     shell:
         """
         scripts/create_cog_clusters.py -e {input.eggnog_annotations} -f {input.fasta_dir} -o {output} -c {params.huge_cutoff} 
+        """
+
+rule create_eggnog_cog_counts_table:
+    input:
+        eggnog_annotations="results/{dataset}/eggnog/annotations.emapper.annotations",
+        genome_to_abbrev="results/{dataset}/genome2abbrev.csv"
+    output:
+        "results/{dataset}/eggnog_cog_counts_table.csv"
+    params:
+        column_name_for_accession="accession",
+        column_name_for_abbrev="short"
+    shell:
+        """
+        scripts/generate_presence_absence_table.py -e {input.eggnog_annotations} -o {output} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} --map-col-output {params.column_name_for_accession}
         """

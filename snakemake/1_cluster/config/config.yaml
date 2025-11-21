@@ -1,5 +1,5 @@
 ---
-dataset: "dataset_1007genomes_r226"
+dataset: "whole_gtdb_r226"
 accession_ids_file: "list_of_accession_ids.txt"
 gtdb_version: "226"
 gtdb_subversion: "0"

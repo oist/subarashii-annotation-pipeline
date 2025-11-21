@@ -16,7 +16,8 @@ phylobayes:
   path: "/apps/unit/SzollosiU/phylobayesmpi/1.9/bin/pb_mpi"
   burnin: 5000
 iqtree:
-  threads: 64
+  threads: 16
+  threads_concatenated: 64
   runtime: 5760
   module_name: "iqtree3"
   mem: 4000
