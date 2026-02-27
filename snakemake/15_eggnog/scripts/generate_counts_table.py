@@ -15,6 +15,10 @@ Authors:
     - Lenard Szantho <lenard@drenal.eu>
 
 Version:
+    - v0.4 (2026-02-26)
+        - generalizing for KEGG KO and EC category columns as well
+    - v0.3 (2026-02-13)
+        - bugfix: count all |root COGs, not just the first one
     - v0.2 (2025-11-18) 
         - dropping pandas and pyarrow, due to RAM usage, using just dictionaries, 
         - exporting cog2genes file with the structure: "COG_ID    gene1,gene2,gene3,...,geneN"
@@ -41,8 +45,15 @@ def main():
     parser.add_argument("-o", "--output", help="Output filename base", required=True, type=Path)
     parser.add_argument("-m", "--map", help="Metadata mapping csv file with 2 or more columns to be included in the genomes2cogcounts file.", required=False, type=Path)
     parser.add_argument("--map-col-eggnog", help="Column name in the mapping csv file corresponding to the genome column in the eggnog annotation file.")
-    parser.add_argument("-a", "--all", help="Output all OGs, not just COGs", action="store_true", default=False)
+    parser.add_argument("-a", "--all", help="Output all OGs, not just COGs. Has effect only if '-c' is set to 'cog'", action="store_true", default=False)
+    parser.add_argument("-c", "--column", help="Column to count. By default the 'cog', i.e. counting the eggnog_OG column.", default="cog", choices=['cog', 'ko', 'ec'])
     args = parser.parse_args()
+
+    columns_mapping = {
+            "cog": 4,
+            "ko": 11,
+            "ec": 10
+    }
 
     if args.map:
         if not args.map_col_eggnog:
@@ -54,9 +65,9 @@ def main():
     genome2cogcounts = dict()
     cogs = set()
     # stores COG association of a gene (same as input basically)
-    # { "gene1": "COG0004" }
+    # { "gene1": ["COG0004", "COGXXXX", ...] }
     gene2cogs = dict()
-    # sotores genes associated to a given COG
+    # stores genes associated to a given COG
     # { "COG0043": ["gene1", "gene2", "gene3", ...] }
     cog2genes = dict()
 
@@ -70,19 +81,28 @@ def main():
             # e.g. Desulfo10_g1909
             gene = rows[0].strip()
             genome = gene.split("_")[0]
-            cog = rows[4].split("@")[0].strip()
-            
-            if not args.all and not cog[:3] == "COG":
-                continue
+            cog_list = []
+            # e.g.: COG0457@1|root,COG0823@1|root,COG2885@1|root,COG0457@2|Bacteria,COG0823@2|Bacteria,COG2885@2|Bacteria,4NE6G@976|Bacteroidetes,2FPQX@200643|Bacteroidia
+            for c in rows[columns_mapping[args.column]].split(","):
+                if args.column == "cog" and "|root" in c:
+                    # e.g. COG0457@1|root
+                    if args.all or c[:3] == "COG":
+                        cog_list.append(c.split("@")[0].strip())
+                if args.column == "ko":
+                    #  ko:K02052,ko:K11072,ko:K11076
+                    cog_list.append(c[3:].strip())
+                if args.column == "ec":
+                    cog_list.append(c.strip())
 
             genome2cogcounts.setdefault(genome, {})
-            genome2cogcounts[genome].setdefault(cog, 0)
-            genome2cogcounts[genome][cog] += 1
-            cogs.add(cog)
+            for c in cog_list:
+                genome2cogcounts[genome].setdefault(c, 0)
+                genome2cogcounts[genome][c] += 1
+                cogs.add(c)
 
-            cog2genes.setdefault(cog, [])
-            cog2genes[cog].append(gene)
-            gene2cogs[gene] = cog
+                cog2genes.setdefault(c, [])
+                cog2genes[c].append(gene)
+            gene2cogs[gene] = cog_list
 
     # change names if mapping is provided
     if args.map:
@@ -114,8 +134,11 @@ def main():
     print(f"Writing count table to {args.output} ...")
     index_label = "genome"
 
-    with open(f"{args.output}_genome2cogcounts.csv", "w") as outputfh:
-        outputfh.write(f"{index_label},accession,taxa,")
+    with open(f"{args.output}_genome2{args.column}counts.csv", "w") as outputfh:
+        if args.map:
+            outputfh.write(f"{index_label},accession,taxa,")
+        else:
+            outputfh.write(f"{index_label},")
         outputfh.write(",".join(sorted(cogs)))
         outputfh.write("\n")
         for genome in genome2cogcounts:
@@ -129,7 +152,7 @@ def main():
                     outputfh.write(",")
             outputfh.write("\n")
 
-    with open(f"{args.output}_cog2genes.list", "w") as outputfh:
+    with open(f"{args.output}_{args.column}2genes.list", "w") as outputfh:
         for cog in sorted(cog2genes.keys()):
             outputfh.write("{}\t{}\n".format(cog, ",".join(cog2genes[cog])))
 

@@ -12,7 +12,9 @@ rule all:
     input:
         "results/{}/annotations.emapper.annotations".format(config["dataset"]),
         "results/{}/eggnog_cogonly_genome2cogcounts.csv".format(config["dataset"]),
-        "results/{}/eggnog_allcat_genome2cogcounts.csv".format(config["dataset"])
+        "results/{}/eggnog_allcat_genome2cogcounts.csv".format(config["dataset"]),
+        "results/{}/eggnog_genome2kocounts.csv".format(config["dataset"]),
+        "results/{}/eggnog_genome2eccounts.csv".format(config["dataset"])
 
 rule download_eggnog_diamond_database:
     output:
@@ -105,3 +107,40 @@ rule create_eggnog_cog_counts_table_allcat:
         """
         scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} --all
         """
+
+rule create_eggnog_ko_counts_table:
+    input:
+        eggnog_annotations="results/{dataset}/annotations.emapper.annotations",
+        genome_to_abbrev="resources/{dataset}/genome2abbrev.csv"
+    output:
+        "results/{dataset}/eggnog_genome2kocounts.csv",
+        "results/{dataset}/eggnog_ko2genes.list"
+    params:
+        output_prefix="results/{dataset}/eggnog",
+        column_name_for_abbrev="short"
+    resources:
+        mem_mb_per_cpu=53600,
+        runtime=1440
+    shell:
+        """
+        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c ko
+        """
+
+rule create_eggnog_ec_counts_table:
+    input:
+        eggnog_annotations="results/{dataset}/annotations.emapper.annotations",
+        genome_to_abbrev="resources/{dataset}/genome2abbrev.csv"
+    output:
+        "results/{dataset}/eggnog_genome2eccounts.csv",
+        "results/{dataset}/eggnog_ec2genes.list"
+    params:
+        output_prefix="results/{dataset}/eggnog",
+        column_name_for_abbrev="short"
+    resources:
+        mem_mb_per_cpu=53600,
+        runtime=1440
+    shell:
+        """
+        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c ec
+        """
+
