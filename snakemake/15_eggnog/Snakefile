@@ -10,67 +10,71 @@ def get_all_genomes_protein_parts_annotations(wildcards):
 
 rule all:
     input:
-        "results/{}/annotations.emapper.annotations".format(config["dataset"]),
+#        "results/{}/annotations.emapper.annotations".format(config["dataset"]),
         "results/{}/eggnog_cogonly_genome2cogcounts.csv".format(config["dataset"]),
         "results/{}/eggnog_allcat_genome2cogcounts.csv".format(config["dataset"]),
         "results/{}/eggnog_genome2kocounts.csv".format(config["dataset"]),
-        "results/{}/eggnog_genome2eccounts.csv".format(config["dataset"])
+        "results/{}/eggnog_genome2eccounts.csv".format(config["dataset"]),
+        "results/{}/eggnog_cogonly_genome2cogcounts.feather".format(config["dataset"]),
+        "results/{}/eggnog_allcat_genome2cogcounts.feather".format(config["dataset"]),
+        "results/{}/eggnog_genome2kocounts.feather".format(config["dataset"]),
+        "results/{}/eggnog_genome2eccounts.feather".format(config["dataset"])
 
-rule download_eggnog_diamond_database:
-    output:
-        "resources/eggnog_diamond_db/eggnog.db",
-        "resources/eggnog_diamond_db/eggnog_proteins.dmnd",
-        "resources/eggnog_diamond_db/eggnog.taxa.db",
-        "resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl"
-    params:
-        outdir="resources/eggnog_diamond_db"
-    shell:
-        """
-        mkdir -p {params.outdir}
-        download_eggnog_data.py -y -f --data_dir {params.outdir}
-        """
+#rule download_eggnog_diamond_database:
+#    output:
+#        "resources/eggnog_diamond_db/eggnog.db",
+#        "resources/eggnog_diamond_db/eggnog_proteins.dmnd",
+#        "resources/eggnog_diamond_db/eggnog.taxa.db",
+#        "resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl"
+#    params:
+#        outdir="resources/eggnog_diamond_db"
+#    shell:
+#        """
+#        mkdir -p {params.outdir}
+#        download_eggnog_data.py -y -f --data_dir {params.outdir}
+#        """
 
-rule eggnog_mapper:
-    input:
-        query="resources/{dataset}/all_genomes_protein.part{part}.faa",
-        db="resources/eggnog_diamond_db/eggnog.db",
-        dmnd="resources/eggnog_diamond_db/eggnog_proteins.dmnd",
-        taxadb="resources/eggnog_diamond_db/eggnog.taxa.db",
-        pkl="resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl"
-    output:
-        "results/{dataset}/eggnog/all_genomes_protein.part{part}.emapper.annotations",
-        "results/{dataset}/eggnog/all_genomes_protein.part{part}.emapper.hits",
-        "results/{dataset}/eggnog/all_genomes_protein.part{part}.emapper.seed_orthologs",
-    threads: config["eggnog"]["threads"]
-    resources:
-        mem_mb_per_cpu=1500,
-        runtime=5760
-    params:
-        mode="diamond",
-        outputprefix="results/{dataset}/eggnog/all_genomes_protein.part{part}",
-        db="resources/eggnog_diamond_db"
-    shell:
-        """
-        emapper.py -i {input.query} --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override --dbmem
-        """
+#rule eggnog_mapper:
+#    input:
+#        query="resources/{dataset}/all_genomes_protein.part{part}.faa",
+#        db="resources/eggnog_diamond_db/eggnog.db",
+#        dmnd="resources/eggnog_diamond_db/eggnog_proteins.dmnd",
+#        taxadb="resources/eggnog_diamond_db/eggnog.taxa.db",
+#        pkl="resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl"
+#    output:
+#        "results/{dataset}/eggnog/all_genomes_protein.part{part}.emapper.annotations",
+#        "results/{dataset}/eggnog/all_genomes_protein.part{part}.emapper.hits",
+#        "results/{dataset}/eggnog/all_genomes_protein.part{part}.emapper.seed_orthologs",
+#    threads: config["eggnog"]["threads"]
+#    resources:
+#        mem_mb_per_cpu=1500,
+#        runtime=5760
+#    params:
+#        mode="diamond",
+#        outputprefix="results/{dataset}/eggnog/all_genomes_protein.part{part}",
+#        db="resources/eggnog_diamond_db"
+#    shell:
+#        """
+#        emapper.py -i {input.query} --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override --dbmem
+#        """
 
-rule merge_annotations:
-    input:
-        get_all_genomes_protein_parts_annotations
-    output:
-        "results/{dataset}/annotations.emapper.annotations"
-    shell:
-        """
-        FIRST=1
-        for f in {input:q}; do
-            if [ "$FIRST" -eq "1" ]; then
-                cat $f > {output}
-                FIRST=0
-            else
-                tail -n +6 $f >> {output}
-            fi
-        done
-        """
+#rule merge_annotations:
+#    input:
+#        get_all_genomes_protein_parts_annotations
+#    output:
+#        "results/{dataset}/annotations.emapper.annotations"
+#    shell:
+#        """
+#        FIRST=1
+#        for f in {input:q}; do
+#            if [ "$FIRST" -eq "1" ]; then
+#                cat $f > {output}
+#                FIRST=0
+#            else
+#                tail -n +6 $f >> {output}
+#            fi
+#        done
+#        """
 
 rule create_eggnog_cog_counts_table_cogonly:
     input:
@@ -78,16 +82,17 @@ rule create_eggnog_cog_counts_table_cogonly:
         genome_to_abbrev="resources/{dataset}/genome2abbrev.csv"
     output:
         "results/{dataset}/eggnog_cogonly_genome2cogcounts.csv",
+        "results/{dataset}/eggnog_cogonly_genome2cogcounts.feather",
         "results/{dataset}/eggnog_cogonly_cog2genes.list"
     params:
         output_prefix="results/{dataset}/eggnog_cogonly",
         column_name_for_abbrev="short"
     resources:
-        mem_mb_per_cpu=53600,
+        mem_mb_per_cpu=306800,
         runtime=1440
     shell:
         """
-        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev}
+        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c cog -f
         """
  
 rule create_eggnog_cog_counts_table_allcat:
@@ -96,16 +101,19 @@ rule create_eggnog_cog_counts_table_allcat:
         genome_to_abbrev="resources/{dataset}/genome2abbrev.csv"
     output:
         "results/{dataset}/eggnog_allcat_genome2cogcounts.csv",
+        "results/{dataset}/eggnog_allcat_genome2cogcounts.feather",
         "results/{dataset}/eggnog_allcat_cog2genes.list"
     params:
         output_prefix="results/{dataset}/eggnog_allcat",
         column_name_for_abbrev="short"
+    log:
+        "logs/{dataset}/eggnog_allcat.log"
     resources:
-        mem_mb_per_cpu=306800,
-        runtime=1440
+        mem_mb_per_cpu=706800,
+        runtime=2880
     shell:
         """
-        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} --all
+        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} --all -c cog -f #-r Anzhelika_filter_20260318.list
         """
 
 rule create_eggnog_ko_counts_table:
@@ -114,16 +122,17 @@ rule create_eggnog_ko_counts_table:
         genome_to_abbrev="resources/{dataset}/genome2abbrev.csv"
     output:
         "results/{dataset}/eggnog_genome2kocounts.csv",
+        "results/{dataset}/eggnog_genome2kocounts.feather",
         "results/{dataset}/eggnog_ko2genes.list"
     params:
         output_prefix="results/{dataset}/eggnog",
         column_name_for_abbrev="short"
     resources:
-        mem_mb_per_cpu=53600,
+        mem_mb_per_cpu=306800,
         runtime=1440
     shell:
         """
-        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c ko
+        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c ko -f
         """
 
 rule create_eggnog_ec_counts_table:
@@ -132,15 +141,19 @@ rule create_eggnog_ec_counts_table:
         genome_to_abbrev="resources/{dataset}/genome2abbrev.csv"
     output:
         "results/{dataset}/eggnog_genome2eccounts.csv",
+        "results/{dataset}/eggnog_genome2eccounts.feather",
         "results/{dataset}/eggnog_ec2genes.list"
     params:
         output_prefix="results/{dataset}/eggnog",
         column_name_for_abbrev="short"
     resources:
-        mem_mb_per_cpu=53600,
+        mem_mb_per_cpu=306800,
         runtime=1440
     shell:
         """
-        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c ec
+        scripts/generate_counts_table.py -e {input.eggnog_annotations} -o {params.output_prefix} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} -c ec -f
         """
+
+
+
 
