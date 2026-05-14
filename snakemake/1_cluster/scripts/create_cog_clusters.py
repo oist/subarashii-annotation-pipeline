@@ -60,7 +60,7 @@ def main():
             # e.g.: COG0457@1|root,COG0823@1|root,COG2885@1|root,COG0457@2|Bacteria,COG0823@2|Bacteria
             for c in rows[4].split(","):
                 if "|root" in c:
-                    cog_list.append(c.split("@")[0].strip()
+                    cog_list.append(c.split("@")[0].strip())
 
             genome2genes2cog.setdefault(genome, {})
             genome2genes2cog[genome].setdefault(gene, [])
