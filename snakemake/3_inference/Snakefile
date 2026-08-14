@@ -20,12 +20,26 @@ def get_iqtree_per_fam_result_files(wildcards):
 
 rule all:
     input:
-        #get_phylobayes_per_fam_result_files,
-        #expand("results/{dataset}/{cluster}/phylobayes_burnin_cut", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        #expand("results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], cluster=["mcl", "eggnog"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
-        expand("results/{dataset}/{cluster}/iqtree/concatenated.universality.done", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        #expand("results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        #expand("results/{dataset}/{cluster}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"])
+        rules.per_family_all.input,
+        rules.concat_all.input,
+        rules.alerax_all.input,
+
+# Named targets used by the governor script to run stages independently.
+rule per_family_all:
+    input:
+        expand("results/{dataset}/{cluster}/phylobayes_burnin_cut", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/alerax_pb/families.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/alerax_iqtree/families.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+
+rule concat_all:
+    input:
+        expand("results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], cluster=["mcl", "eggnog"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
+        expand("results/{dataset}/{cluster}/iqtree/concatenated.universality.iqtree", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+
+rule alerax_all:
+    input:
+        expand("results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
 
 rule start_phylobayes_perfamily:
     input:
@@ -269,7 +283,9 @@ rule start_alerax_pb:
         mpimodule=config["openmpi_module_name"],
         runtime=config["alerax"]["runtime"]
     params:
-        outputdir="results/{dataset}/{cluster}/alerax_pb/"
+        outputdir="results/{dataset}/{cluster}/alerax_pb/",
+        # Use a user-provided species tree if given, otherwise let AleRax infer one.
+        species_tree=config.get("species_tree", "MiniNJ")
     shell:
         """
         # load modules necessary for mpi
@@ -294,7 +310,7 @@ rule start_alerax_pb:
         --families {input} \
         --rec-model UndatedDTL \
         --species-tree-search HYBRID \
-        -s MiniNJ \
+        -s {params.species_tree} \
         --transfer-constraint PARENTS \
         --prefix {params.outputdir}
         """
@@ -305,7 +321,9 @@ rule start_alerax_iqtree:
     output:
         "results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt"
     params:
-        outputdir="results/{dataset}/{cluster}/alerax_iqtree/"
+        outputdir="results/{dataset}/{cluster}/alerax_iqtree/",
+        # Use a user-provided species tree if given, otherwise let AleRax infer one.
+        species_tree=config.get("species_tree", "MiniNJ")
     resources:
         tasks=config["alerax"]["tasks"],
         mpi="mpirun",
@@ -335,7 +353,7 @@ rule start_alerax_iqtree:
         --families {input} \
         --rec-model UndatedDTL \
         --species-tree-search HYBRID \
-        -s MiniNJ \
+        -s {params.species_tree} \
         --transfer-constraint PARENTS \
         --prefix {params.outputdir}
         """
