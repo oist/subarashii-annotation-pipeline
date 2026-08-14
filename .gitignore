@@ -1,3 +1,7 @@
+# Claude Code
+CLAUDE.md
+.claude/
+
 resources/gtdb_genomes_reps_r202.tar.gz
 resources/gtdb_genomes_reps_r202/
 resources/gtdb_proteins_aa_reps_r202.tar.gz
