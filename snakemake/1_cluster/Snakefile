@@ -302,9 +302,12 @@ rule split_mcl_clusters:
 rule download_eggnog_diamond_database:
     output:
         "resources/eggnog_diamond_db/eggnog.db",
+        "resources/eggnog_diamond_db/eggnog.db.fieldpresence.bin",
+        "resources/eggnog_diamond_db/eggnog.db.taxids.bin",
         "resources/eggnog_diamond_db/eggnog_proteins.dmnd",
         "resources/eggnog_diamond_db/eggnog.taxa.db",
-        "resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl"
+        "resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl",
+        "resources/eggnog_diamond_db/go-basic.obo"
     params:
         outdir="resources/eggnog_diamond_db"
     shell:
@@ -318,9 +321,12 @@ rule eggnog_mapper:
     input:
         fasta="results/{dataset}/all_genomes_protein.faa",
         db="resources/eggnog_diamond_db/eggnog.db",
+        fp="resources/eggnog_diamond_db/eggnog.db.fieldpresence.bin",
+        taxids="resources/eggnog_diamond_db/eggnog.db.taxids.bin",
         dmnd="resources/eggnog_diamond_db/eggnog_proteins.dmnd",
         taxadb="resources/eggnog_diamond_db/eggnog.taxa.db",
-        pkl="resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl" 
+        pkl="resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl",
+        go="resources/eggnog_diamond_db/go-basic.obo"
     output:
         "results/{dataset}/eggnog/annotations.emapper.annotations",
         "results/{dataset}/eggnog/annotations.emapper.hits",
@@ -335,7 +341,7 @@ rule eggnog_mapper:
         db="resources/eggnog_diamond_db"
     shell:
         """
-        emapper.py -i {input.fasta} --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
+        emapper.py -i {input.fasta} --itype proteins --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
         """
 
 rule cluster_into_cogs:
