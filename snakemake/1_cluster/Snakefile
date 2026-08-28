@@ -313,7 +313,10 @@ rule download_eggnog_diamond_database:
     shell:
         """
         mkdir -p {params.outdir}
-        EGGNOG_DATA_DIR={params.outdir} download_eggnog_data.py -y -f --data_dir {params.outdir}
+        # eggnog-mapper v3 beta bug: set_data_path() validates the default site-packages/data
+        # directory before --data_dir is parsed. Create it so the check passes.
+        python -c "import eggnogmapper, os; os.makedirs(os.path.join(os.path.dirname(eggnogmapper.__file__), 'data'), exist_ok=True)"
+        download_eggnog_data.py -y -f --data_dir {params.outdir}
         """
 
 # break into genomes and not all
@@ -341,7 +344,7 @@ rule eggnog_mapper:
         db="resources/eggnog_diamond_db"
     shell:
         """
-        EGGNOG_DATA_DIR={params.db} emapper.py -i {input.fasta} --itype proteins --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
+        emapper.py -i {input.fasta} --itype proteins --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
         """
 
 rule cluster_into_cogs:
