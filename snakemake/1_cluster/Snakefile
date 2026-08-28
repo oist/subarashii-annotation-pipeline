@@ -313,7 +313,7 @@ rule download_eggnog_diamond_database:
     shell:
         """
         mkdir -p {params.outdir}
-        download_eggnog_data.py -y -f --data_dir {params.outdir}
+        EGGNOG_DATA_DIR={params.outdir} download_eggnog_data.py -y -f --data_dir {params.outdir}
         """
 
 # break into genomes and not all
@@ -341,7 +341,7 @@ rule eggnog_mapper:
         db="resources/eggnog_diamond_db"
     shell:
         """
-        emapper.py -i {input.fasta} --itype proteins --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
+        EGGNOG_DATA_DIR={params.db} emapper.py -i {input.fasta} --itype proteins --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
         """
 
 rule cluster_into_cogs:

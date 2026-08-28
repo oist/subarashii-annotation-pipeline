@@ -1,7 +1,8 @@
 #!/bin/bash
 
 usage() {
-	printf "\ntransition_1to2.sh script copies a given dataset's\n 1_cluster pipeline's results (by default inflation=1.8\n and clustertype=Normal) to the 2_concatenate_and_filter\n pipeline's resources directory\n"
+	printf "\ntransition_1to2.sh script copies a given dataset's\n 1_cluster pipeline's results to the 2_concatenate_and_filter\n pipeline's resources directory.\n"
+	printf "\n The optional inflation and clustertype arguments select which MCL\n result directory to use; they do not affect the output dataset name.\n"
 	printf "\n Usage: bash transition_1to2.sh <dataset> [inflation] [clustertype]\n"
 }
 
@@ -43,24 +44,22 @@ if [ ! -d 1_cluster/results/${DATASET}/mcl/$INFLATION/$CLUSTERTYPE ]; then
 	exit 5
 fi
 
-NEW_DATASET=`echo "${DATASET}_I${INFLATION}_${CLUSTERTYPE}" | sed 's/\.//'`
+echo "[log] Creating directory $DATASET for dataset in 2_concatenate_and_filter pipeline ..."
+mkdir -p 2_concatenate_and_filter/resources/${DATASET}/{mcl,eggnog}
 
-echo "[log] Creating directory $NEW_DATASET for dataset in 2_concatenate_and_filter pipeline ..."
-mkdir -p 2_concatenate_and_filter/resources/${NEW_DATASET}/{mcl,eggnog}
-
-echo "[log] Changing directory to 2_concatenate_and_filter/resources/${NEW_DATASET}/mcl ..."
-cd 2_concatenate_and_filter/resources/${NEW_DATASET}/mcl
+echo "[log] Changing directory to 2_concatenate_and_filter/resources/${DATASET}/mcl ..."
+cd 2_concatenate_and_filter/resources/${DATASET}/mcl
 
 echo "[log] Symlinking sequences under 1_cluster/results/$DATASET/mcl/$INFLATION/$CLUSTERTYPE to 2_concatenate_and_filter pipeline's resources directory ..."
 find ../../../../1_cluster/results/$DATASET/mcl/$INFLATION/$CLUSTERTYPE/ -iname "*.faa" -exec ln -s {} \;
 
-echo "[log] Changing directory to 2_concatenate_and_filter/resources/${NEW_DATASET}/eggnog ..."
+echo "[log] Changing directory to 2_concatenate_and_filter/resources/${DATASET}/eggnog ..."
 cd ../eggnog
 
-echo "[log] Symlinking sequences under 1_cluster/results/$DATASET/eggnog/$CLUSTERTYPE to 2_concatenate_and_filter pipeline's resources directory ..."
+echo "[log] Symlinking sequences under 1_cluster/results/$DATASET/cog_clusters/$CLUSTERTYPE to 2_concatenate_and_filter pipeline's resources directory ..."
 find ../../../../1_cluster/results/$DATASET/cog_clusters/$CLUSTERTYPE/ -iname "*.faa" -exec ln -s {} \;
 
-echo "[action required] Please update 2_concatenate_and_filter/config/config.yaml with the new dataset name: $NEW_DATASET to perform the second step of the pipeline on it."
+echo "[action required] Please update 2_concatenate_and_filter/config/config.yaml with the dataset name: $DATASET to perform the second step of the pipeline on it."
 
 echo "[log] Script ended $(date)."
 

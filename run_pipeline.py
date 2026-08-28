@@ -75,17 +75,6 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def inflated_name(dataset: str, inflation: float, clustertype: str = "Normal") -> str:
-    """Compute the dataset name used by Stages 2 and 3.
-
-    Mirrors what transition_1to2.sh produces:
-      {dataset}_I{inflation_without_dot}_{clustertype}
-    e.g. my_data + 1.8 + Normal → my_data_I18_Normal
-    """
-    inf_str = str(inflation).replace(".", "")
-    return f"{dataset}_I{inf_str}_{clustertype}"
-
-
 def state_path(dataset: str) -> Path:
     return STAGE1_DIR / "resources" / dataset / ".pipeline_state.json"
 
@@ -137,7 +126,20 @@ def parse_value(s: str):
 # ── snakemake runner ───────────────────────────────────────────────────────────
 
 def snakemake_unlock(stage_dir: Path) -> None:
-    subprocess.run(["snakemake", "--unlock"], cwd=stage_dir, capture_output=True)
+    """Remove Snakemake lock files directly.
+
+    After a SIGKILL, `snakemake --unlock` itself can fail because it tries to
+    acquire part of the lock state. Deleting the files in .snakemake/locks/ is
+    the reliable alternative — a lock is just a set of files, and a dead process
+    can never release them on its own.
+    """
+    locks_dir = stage_dir / ".snakemake" / "locks"
+    if locks_dir.exists():
+        removed = list(locks_dir.iterdir())
+        for f in removed:
+            f.unlink()
+        if removed:
+            print(f"  [unlock] Cleared {len(removed)} stale lock(s) in {locks_dir}")
 
 
 def run_snakemake(
@@ -198,17 +200,17 @@ def run_snakemake(
 
 # ── transition scripts ─────────────────────────────────────────────────────────
 
-def run_transition_1to2(dataset: str, inflation: float, clustertype: str) -> bool:
+def run_transition_1to2(dataset: str, mcl_inflation: float, clustertype: str) -> bool:
     result = subprocess.run(
-        ["bash", "transition_1to2.sh", dataset, str(inflation), clustertype],
+        ["bash", "transition_1to2.sh", dataset, str(mcl_inflation), clustertype],
         cwd=SNAKEMAKE_DIR,
     )
     return result.returncode == 0
 
 
-def run_transition_2to3(inf_dataset: str) -> bool:
+def run_transition_2to3(dataset: str) -> bool:
     result = subprocess.run(
-        ["bash", "transition_2to3.sh", inf_dataset],
+        ["bash", "transition_2to3.sh", dataset],
         cwd=SNAKEMAKE_DIR,
     )
     return result.returncode == 0
@@ -232,13 +234,14 @@ def advance_dataset(
     state["config"] = cfg
     save_state(state)
 
-    inflation = cfg.get("mcl_inflation", 1.8)
+    # MCL inflation and clustertype are only needed internally to locate the
+    # right MCL results directory during the transition; they are not exposed
+    # in dataset names.
+    mcl_inflation = cfg.get("mcl_inflation", 1.8)
     clustertype = cfg.get("clustertype", "Normal")
-    inf_dataset = inflated_name(dataset, inflation, clustertype)
 
     print(f"\n{'='*60}")
-    print(f"Dataset : {dataset}")
-    print(f"Stage 2/3 name : {inf_dataset}")
+    print(f"Dataset: {dataset}")
     print()
     for step in STEPS:
         status = state["steps"][step]
@@ -272,7 +275,7 @@ def advance_dataset(
     # ── Transition 1 → 2 ─────────────────────────────────────────────────────
     if not done("transition_1to2"):
         print(f"▶  {STEP_LABELS['transition_1to2']}")
-        ok = run_transition_1to2(dataset, inflation, clustertype)
+        ok = run_transition_1to2(dataset, mcl_inflation, clustertype)
         if not ok:
             return fail("transition_1to2", "transition_1to2.sh failed.")
         mark("transition_1to2", "complete")
@@ -282,7 +285,7 @@ def advance_dataset(
     # ── Stage 2 ──────────────────────────────────────────────────────────────
     if not done("stage2"):
         print(f"▶  {STEP_LABELS['stage2']}")
-        ok = run_snakemake(STAGE2_DIR, executor, jobs, inf_dataset, cfg, dry_run=dry_run)
+        ok = run_snakemake(STAGE2_DIR, executor, jobs, dataset, cfg, dry_run=dry_run)
         if not ok:
             return fail("stage2", "Snakemake exited non-zero.")
         mark("stage2", "complete")
@@ -292,7 +295,7 @@ def advance_dataset(
     # ── Transition 2 → 3 ─────────────────────────────────────────────────────
     if not done("transition_2to3"):
         print(f"▶  {STEP_LABELS['transition_2to3']}")
-        ok = run_transition_2to3(inf_dataset)
+        ok = run_transition_2to3(dataset)
         if not ok:
             return fail("transition_2to3", "transition_2to3.sh failed.")
         mark("transition_2to3", "complete")
@@ -303,7 +306,7 @@ def advance_dataset(
     if not done("stage3_per_family"):
         print(f"▶  {STEP_LABELS['stage3_per_family']}")
         ok = run_snakemake(
-            STAGE3_DIR, executor, jobs, inf_dataset, cfg,
+            STAGE3_DIR, executor, jobs, dataset, cfg,
             targets=["per_family_all"], dry_run=dry_run,
         )
         if not ok:
@@ -324,7 +327,7 @@ def advance_dataset(
         if not done("stage3_concat"):
             print(f"▶  {STEP_LABELS['stage3_concat']}")
             ok = run_snakemake(
-                STAGE3_DIR, executor, jobs, inf_dataset, cfg,
+                STAGE3_DIR, executor, jobs, dataset, cfg,
                 targets=["concat_all"], dry_run=dry_run,
             )
             if not ok:
@@ -337,7 +340,7 @@ def advance_dataset(
     if not done("stage3_alerax"):
         print(f"▶  {STEP_LABELS['stage3_alerax']}")
         ok = run_snakemake(
-            STAGE3_DIR, executor, jobs, inf_dataset, alerax_cfg,
+            STAGE3_DIR, executor, jobs, dataset, alerax_cfg,
             targets=["alerax_all"], dry_run=dry_run,
         )
         if not ok:
@@ -377,11 +380,6 @@ def cmd_run(args) -> None:
             sys.exit(1)
         k, _, v = kv.partition("=")
         set_nested(config_overrides, k.strip(), parse_value(v.strip()))
-
-    if args.inflation is not None:
-        config_overrides["mcl_inflation"] = args.inflation
-    if args.clustertype is not None:
-        config_overrides["clustertype"] = args.clustertype
 
     species_tree = None
     if args.species_tree:
@@ -487,17 +485,6 @@ def main() -> None:
         help="Maximum parallel jobs / cores passed to Snakemake. Default: 20.",
     )
     r.add_argument(
-        "--inflation", type=float, metavar="FLOAT",
-        help=(
-            "MCL inflation value to use for the Stage 1→2 transition. "
-            "Must match one of the values in Stage 1's config. Default: 1.8."
-        ),
-    )
-    r.add_argument(
-        "--clustertype", metavar="STR",
-        help="Cluster type used in the transition (Normal / …). Default: Normal.",
-    )
-    r.add_argument(
         "--species-tree", metavar="FILE",
         help=(
             "Path to a pre-existing species tree in Newick format. "
@@ -510,7 +497,9 @@ def main() -> None:
         help=(
             "Override any pipeline config parameter using dotted key paths. "
             "Values are auto-cast to int/float where possible. "
-            "Example: --set eggnog.threads=32 phylobayes.tasks=64"
+            "Example: --set eggnog.threads=32 phylobayes.tasks=64. "
+            "Advanced: use mcl_inflation=1.4 or clustertype=Normal to select "
+            "which MCL result directory feeds into Stage 2 (default: 1.8 / Normal)."
         ),
     )
     r.add_argument(
