@@ -5,13 +5,15 @@ default-resources:
   runtime: 120
   tasks: 1
 set-resources:
-  get_all_proteomes:
+  get_all_genomes_protein:
     # Downloading 20-120 GB file
     runtime: 1440
-  get_all_genomes:
+  get_all_genomes_na:
     # Downloading 20-120 GB file
     runtime: 1440
-  select_proteomes:
+  select_genomes_protein:
+    runtime: 1440
+  select_genomes_na:
     runtime: 1440
   create_genome2taxa:
     runtime: 600
