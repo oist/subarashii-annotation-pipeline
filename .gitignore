@@ -3,6 +3,10 @@ CLAUDE.md
 .claude/
 1_start_IDE.sh
 
+subarashii-annotation-paper/
+__pycache__/
+.DS_Store
+
 .ipynb_checkpoints/
 
 resources/gtdb_genomes_reps_r202.tar.gz

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Phylogenomics pipeline governor.
+subarashii-annotation-pipeline governor.
 
-Run at any time — it checks where each dataset is and continues from there.
+Run at any time -- it checks where each dataset is and continues from there.
 State is persisted between invocations, so re-running after a failure resumes
 from the failed step without redoing completed work.
 
@@ -16,7 +16,7 @@ Usage examples:
   # Check status without running anything
   ./run_pipeline.py status
 
-  # Use a pre-existing species tree (skips concatenated inference step)
+  # Use a pre-existing species tree (skips concatenated inference step, the leaf names have to be valid GTDB genome accession IDs)
   ./run_pipeline.py run --dataset my_run --species-tree /path/to/tree.nwk
 
   # Override config parameters
@@ -43,6 +43,7 @@ STAGE3_DIR = SNAKEMAKE_DIR / "3_inference"
 # Steps in execution order. Each is a key in the state file.
 STEPS = [
     "stage1",
+    "stage1_db",
     "transition_1to2",
     "stage2",
     "transition_2to3",
@@ -52,20 +53,21 @@ STEPS = [
 ]
 
 STEP_LABELS = {
-    "stage1":           "Clustering (Stage 1)",
-    "transition_1to2":  "Transition 1 → 2",
-    "stage2":           "Alignment & filtering (Stage 2)",
-    "transition_2to3":  "Transition 2 → 3",
+    "stage1":            "Clustering (Stage 1)",
+    "stage1_db":         "DuckDB/Parquet database of Eggnog Mapper results and other metadata",
+    "transition_1to2":   "Transition 1 -> 2",
+    "stage2":            "Alignment & filtering (Stage 2)",
+    "transition_2to3":   "Transition 2 -> 3",
     "stage3_per_family": "Per-family trees (Stage 3a)",
-    "stage3_concat":    "Concatenated / species tree (Stage 3b)",
-    "stage3_alerax":    "AleRax reconciliation (Stage 3c)",
+    "stage3_concat":     "Concatenated / species tree (Stage 3b)",
+    "stage3_alerax":     "AleRax reconciliation (Stage 3c)",
 }
 
 STATUS_ICON = {
-    "complete": "✓",
-    "skipped":  "–",
-    "failed":   "✗",
-    "pending":  "·",
+    "complete": "O",
+    "skipped":  "-",
+    "failed":   "X",
+    "pending":  ".",
 }
 
 
@@ -82,7 +84,12 @@ def state_path(dataset: str) -> Path:
 def load_state(dataset: str) -> dict:
     p = state_path(dataset)
     if p.exists():
-        return json.loads(p.read_text())
+        state = json.loads(p.read_text())
+        # migrate: add any steps introduced after the state file was created
+        for s in STEPS:
+            if s not in state["steps"]:
+                state["steps"][s] = "pending"
+        return state
     return {
         "dataset": dataset,
         "created": now_iso(),
@@ -129,9 +136,8 @@ def snakemake_unlock(stage_dir: Path) -> None:
     """Remove Snakemake lock files directly.
 
     After a SIGKILL, `snakemake --unlock` itself can fail because it tries to
-    acquire part of the lock state. Deleting the files in .snakemake/locks/ is
-    the reliable alternative — a lock is just a set of files, and a dead process
-    can never release them on its own.
+    acquire part of the lock state. A dead process can never release them on 
+    its own, so deleting files in .snakemake/locks/
     """
     locks_dir = stage_dir / ".snakemake" / "locks"
     if locks_dir.exists():
@@ -224,6 +230,7 @@ def advance_dataset(
     jobs: int,
     config_overrides: dict,
     species_tree: Path | None,
+    create_db: bool,
     dry_run: bool,
 ) -> bool:
     state = load_state(dataset)
@@ -264,47 +271,69 @@ def advance_dataset(
 
     # ── Stage 1 ──────────────────────────────────────────────────────────────
     if not done("stage1"):
-        print(f"▶  {STEP_LABELS['stage1']}")
+        print(f">  {STEP_LABELS['stage1']}")
         ok = run_snakemake(STAGE1_DIR, executor, jobs, dataset, cfg, dry_run=dry_run)
         if not ok:
             return fail("stage1", "Snakemake exited non-zero.")
         mark("stage1", "complete")
     else:
-        print(f"✓  {STEP_LABELS['stage1']}")
+        print(f"O  {STEP_LABELS['stage1']}")
+
+    # ── Stage 1 DB: optional DuckDB/Parquet from eggnog results ──────────────
+    db_status = state["steps"]["stage1_db"]
+    if create_db:
+        if db_status != "complete":
+            print(f">  {STEP_LABELS['stage1_db']}")
+            ok = run_snakemake(
+                STAGE1_DIR, executor, jobs, dataset, cfg,
+                targets=["db_all"], dry_run=dry_run,
+            )
+            if not ok:
+                return fail("stage1_db", "Snakemake db_all target failed.")
+            mark("stage1_db", "complete")
+        else:
+            print(f"O  {STEP_LABELS['stage1_db']}")
+    else:
+        if db_status == "complete":
+            print(f"O  {STEP_LABELS['stage1_db']}")
+        else:
+            if db_status != "skipped":
+                mark("stage1_db", "skipped")
+            print(f"–  {STEP_LABELS['stage1_db']} (skipped — use --create-db to enable)")
 
     # ── Transition 1 → 2 ─────────────────────────────────────────────────────
     if not done("transition_1to2"):
-        print(f"▶  {STEP_LABELS['transition_1to2']}")
+        print(f">  {STEP_LABELS['transition_1to2']}")
         ok = run_transition_1to2(dataset, mcl_inflation, clustertype)
         if not ok:
             return fail("transition_1to2", "transition_1to2.sh failed.")
         mark("transition_1to2", "complete")
     else:
-        print(f"✓  {STEP_LABELS['transition_1to2']}")
+        print(f"O  {STEP_LABELS['transition_1to2']}")
 
     # ── Stage 2 ──────────────────────────────────────────────────────────────
     if not done("stage2"):
-        print(f"▶  {STEP_LABELS['stage2']}")
+        print(f">  {STEP_LABELS['stage2']}")
         ok = run_snakemake(STAGE2_DIR, executor, jobs, dataset, cfg, dry_run=dry_run)
         if not ok:
             return fail("stage2", "Snakemake exited non-zero.")
         mark("stage2", "complete")
     else:
-        print(f"✓  {STEP_LABELS['stage2']}")
+        print(f"O  {STEP_LABELS['stage2']}")
 
     # ── Transition 2 → 3 ─────────────────────────────────────────────────────
     if not done("transition_2to3"):
-        print(f"▶  {STEP_LABELS['transition_2to3']}")
+        print(f">  {STEP_LABELS['transition_2to3']}")
         ok = run_transition_2to3(dataset)
         if not ok:
             return fail("transition_2to3", "transition_2to3.sh failed.")
         mark("transition_2to3", "complete")
     else:
-        print(f"✓  {STEP_LABELS['transition_2to3']}")
+        print(f"O  {STEP_LABELS['transition_2to3']}")
 
     # ── Stage 3a: per-family trees (always required) ──────────────────────────
     if not done("stage3_per_family"):
-        print(f"▶  {STEP_LABELS['stage3_per_family']}")
+        print(f">  {STEP_LABELS['stage3_per_family']}")
         ok = run_snakemake(
             STAGE3_DIR, executor, jobs, dataset, cfg,
             targets=["per_family_all"], dry_run=dry_run,
@@ -313,7 +342,7 @@ def advance_dataset(
             return fail("stage3_per_family", "Snakemake exited non-zero.")
         mark("stage3_per_family", "complete")
     else:
-        print(f"✓  {STEP_LABELS['stage3_per_family']}")
+        print(f"O  {STEP_LABELS['stage3_per_family']}")
 
     # ── Stage 3b: concatenated / species tree (skip if tree provided) ─────────
     if species_tree:
@@ -325,7 +354,7 @@ def advance_dataset(
     else:
         alerax_cfg = cfg
         if not done("stage3_concat"):
-            print(f"▶  {STEP_LABELS['stage3_concat']}")
+            print(f">  {STEP_LABELS['stage3_concat']}")
             ok = run_snakemake(
                 STAGE3_DIR, executor, jobs, dataset, cfg,
                 targets=["concat_all"], dry_run=dry_run,
@@ -334,11 +363,11 @@ def advance_dataset(
                 return fail("stage3_concat", "Snakemake exited non-zero.")
             mark("stage3_concat", "complete")
         else:
-            print(f"✓  {STEP_LABELS['stage3_concat']}")
+            print(f"O  {STEP_LABELS['stage3_concat']}")
 
     # ── Stage 3c: AleRax reconciliation ──────────────────────────────────────
     if not done("stage3_alerax"):
-        print(f"▶  {STEP_LABELS['stage3_alerax']}")
+        print(f">  {STEP_LABELS['stage3_alerax']}")
         ok = run_snakemake(
             STAGE3_DIR, executor, jobs, dataset, alerax_cfg,
             targets=["alerax_all"], dry_run=dry_run,
@@ -347,9 +376,9 @@ def advance_dataset(
             return fail("stage3_alerax", "Snakemake exited non-zero.")
         mark("stage3_alerax", "complete")
     else:
-        print(f"✓  {STEP_LABELS['stage3_alerax']}")
+        print(f"O  {STEP_LABELS['stage3_alerax']}")
 
-    print(f"\n✓  Dataset '{dataset}' fully complete.")
+    print(f"\nO  Dataset '{dataset}' fully complete.")
     return True
 
 
@@ -380,6 +409,9 @@ def cmd_run(args) -> None:
             sys.exit(1)
         k, _, v = kv.partition("=")
         set_nested(config_overrides, k.strip(), parse_value(v.strip()))
+
+    if args.shared_data_dir:
+        config_overrides["shared_data_dir"] = args.shared_data_dir
 
     species_tree = None
     if args.species_tree:
@@ -423,6 +455,7 @@ def cmd_run(args) -> None:
             jobs=args.jobs,
             config_overrides=dict(config_overrides),
             species_tree=species_tree,
+            create_db=args.create_db,
             dry_run=args.dry_run,
         )
         if not ok:
@@ -461,6 +494,9 @@ def main() -> None:
             "    run_pipeline.py run\n\n"
             "  Use a pre-existing species tree:\n"
             "    run_pipeline.py run --dataset my_run --species-tree tree.nwk\n\n"
+            "  Use bulk storage for large files (Deigo /bucket layout):\n"
+            "    run_pipeline.py run --dataset my_run --ids genomes.txt \\\n"
+            "        --shared-data-dir /bucket/user/project\n\n"
             "  Override config params:\n"
             "    run_pipeline.py run --dataset my_run --set eggnog.threads=32 iqtree.threads=64\n"
         ),
@@ -476,7 +512,7 @@ def main() -> None:
     r.add_argument(
         "--executor", default="slurm", metavar="EXECUTOR",
         help=(
-            "Snakemake executor plugin (e.g. slurm, local, lsf, google-lifesciences). "
+            "Snakemake executor plugin (e.g. slurm, local, etc). "
             "Default: slurm."
         ),
     )
@@ -490,6 +526,7 @@ def main() -> None:
             "Path to a pre-existing species tree in Newick format. "
             "When provided, the concatenated inference step (Stage 3b) is skipped "
             "and this tree is passed directly to AleRax."
+            "Leaf names of spcies tree should match GTDB genome accession IDs."
         ),
     )
     r.add_argument(
@@ -500,6 +537,27 @@ def main() -> None:
             "Example: --set eggnog.threads=32 phylobayes.tasks=64. "
             "Advanced: use mcl_inflation=1.4 or clustertype=Normal to select "
             "which MCL result directory feeds into Stage 2 (default: 1.8 / Normal)."
+        ),
+    )
+    r.add_argument(
+        "--shared-data-dir", metavar="PATH",
+        help=(
+            "Path to bulk storage for large shared files (GTDB archives, extracted "
+            "genome directories, taxonomy/metadata TSVs, eggnog DB, and protein "
+            "parquets from the DB step). It's useful if the machine has a small "
+            "execution storage (i.e. /scratch), but a large backstorage that is "
+            "slow to write, but fast enough to read. "
+            "Stored in the dataset state -- only needs to be specified once. "
+            "When unset, all files stay under the project resources/ directory."
+        ),
+    )
+    r.add_argument(
+        "--create-db", action="store_true",
+        help=(
+            "After Stage 1, build a DuckDB + Parquet database from the eggnog-mapper "
+            "results. Produces results/{dataset}/db/dataset.duckdb "
+            "and two Parquet files (genome.parquet, protein.parquet) that can be queried "
+            "with SQL via DuckDB. Requires duckdb and pyarrow in the environment."
         ),
     )
     r.add_argument(

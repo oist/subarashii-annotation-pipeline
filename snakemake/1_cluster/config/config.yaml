@@ -21,3 +21,9 @@ eggnog:
   threads: 60
 mafft:
   threads: 4
+# shared_data_dir -- where all large reference and output files live.
+# Useful in HPC cluster systems where there is fast, but limited scratch
+# and a larger backstorage that is not writable but readable by compute nodes. 
+#   null (default): everything stays in the project directory on scratch.
+#   Per-dataset files (selected genomes, results/) always stay on scratch.
+shared_data_dir: null

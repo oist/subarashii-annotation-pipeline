@@ -1,11 +1,36 @@
 configfile: "config/config.yaml"
 
+# All download / extract / unzip rules run as localrules, because:
+#  (1) it doesn't need Slurm job
+#  (2) if an HPC's cluster storages are split into writable and non-writable by a
+#      a compute node, we want to stay on the node that has write permissions
+localrules:
+    flush_db_to_shared,
+    get_all_genomes_protein,
+    get_all_genomes_na,
+    extract_all_genomes_protein,
+    extract_all_genomes_na,
+    get_bacterial_taxonomy_file,
+    get_archaeal_taxonomy_file,
+    unzip_bacterial_taxonomy_file,
+    unzip_archaeal_taxonomy_file,
+    get_bacterial_metadata_file,
+    get_archaeal_metadata_file,
+    download_eggnog_diamond_database
+
+# Large GTDB reference files (archives, extracted dirs, taxonomy, metadata, eggnog DB)
+# are stored under _SHARED.  Default is "resources/" -- fully backwards-compatible.
+# On HPC cluster system: set shared_data_dir: /storage/user/project in config.yaml to write them
+# directly to bulk storage, freeing fast /scratch.
+_SHARED = config.get("shared_data_dir", "resources")
+_VER    = str(config["gtdb_version"])
+
 def get_accession_ids_file(wildcards):
     return "resources/{}/{}".format(wildcards.dataset, config["accession_ids_file"])
 
 rule all:
     input:
-        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
+        "{}/bac120_taxonomy_r{}.tsv".format(_SHARED, _VER),
         "resources/{}/selected_genomes_protein".format(config["dataset"]),
         "results/{}/genome2abbrev.csv".format(config["dataset"]),
         expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
@@ -16,7 +41,7 @@ rule all:
 
 rule get_all_genomes_protein:
     output:
-        r"resources/all_genomes_protein{gtdb_version,\d+}.tar.gz",
+        "{}/all_genomes_protein{}.tar.gz".format(_SHARED, _VER),
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_proteins_aa_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
@@ -31,7 +56,7 @@ rule get_all_genomes_protein:
 
 rule get_all_genomes_na:
     output:
-        r"resources/all_genomes_na{gtdb_version,\d+}.tar.gz"
+        "{}/all_genomes_na{}.tar.gz".format(_SHARED, _VER)
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/genomic_files_reps/gtdb_genomes_reps_r{config[gtdb_version]}.tar.gz' >/dev/null 2>&1; then
@@ -46,9 +71,9 @@ rule get_all_genomes_na:
 
 rule extract_all_genomes_protein:
     input:
-        "resources/all_genomes_protein{gtdb_version}.tar.gz"
+        "{}/all_genomes_protein{}.tar.gz".format(_SHARED, _VER)
     output:
-        directory(r"resources/all_genomes_protein{gtdb_version,\d+}")
+        directory("{}/all_genomes_protein{}".format(_SHARED, _VER))
     shell:
         """
         mkdir {output}
@@ -57,9 +82,9 @@ rule extract_all_genomes_protein:
 
 rule extract_all_genomes_na:
     input:
-        "resources/all_genomes_na{gtdb_version}.tar.gz"
+        "{}/all_genomes_na{}.tar.gz".format(_SHARED, _VER)
     output:
-        directory(r"resources/all_genomes_na{gtdb_version,\d+}")
+        directory("{}/all_genomes_na{}".format(_SHARED, _VER))
     shell:
         """
         mkdir {output}
@@ -69,7 +94,7 @@ rule extract_all_genomes_na:
 rule select_genomes_protein:
     input:
         get_accession_ids_file,
-        "resources/all_genomes_protein{gtdbversion}".format(gtdbversion=config["gtdb_version"])
+        "{}/all_genomes_protein{}".format(_SHARED, _VER)
     output:
         directory("resources/{dataset}/selected_genomes_protein")
     shell:
@@ -78,7 +103,7 @@ rule select_genomes_protein:
 rule select_genomes_na:
     input:
         get_accession_ids_file,
-        "resources/all_genomes_na{gtdbversion}".format(gtdbversion=config["gtdb_version"])
+        "{}/all_genomes_na{}".format(_SHARED, _VER)
     output:
         directory("resources/{dataset}/selected_genomes_na")
     shell:
@@ -86,7 +111,9 @@ rule select_genomes_na:
 
 rule get_bacterial_taxonomy_file:
     output:
-        "resources/bac120_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+        "{}/bac120_taxonomy_r{}.tsv.gz".format(_SHARED, _VER)
+    params:
+        shared=_SHARED
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
@@ -97,13 +124,13 @@ rule get_bacterial_taxonomy_file:
 
         elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv' >/dev/null 2>&1; then
             wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac120_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
-            mv {output} resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
-            gzip resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
+            mv {output} {params.shared}/bac120_taxonomy_r{config[gtdb_version]}.tsv
+            gzip {params.shared}/bac120_taxonomy_r{config[gtdb_version]}.tsv
 
         elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv'; then
             wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/bac_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
-            mv {output} resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
-            gzip resources/bac120_taxonomy_r{config[gtdb_version]}.tsv
+            mv {output} {params.shared}/bac120_taxonomy_r{config[gtdb_version]}.tsv
+            gzip {params.shared}/bac120_taxonomy_r{config[gtdb_version]}.tsv
 
         else
             echo "GTDB taxonomy file could not be found"
@@ -113,7 +140,9 @@ rule get_bacterial_taxonomy_file:
 
 rule get_archaeal_taxonomy_file:
     output:
-        "resources/ar53_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+        "{}/ar53_taxonomy_r{}.tsv.gz".format(_SHARED, _VER)
+    params:
+        shared=_SHARED
     shell:
         """
         if curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv.gz' >/dev/null 2>&1; then
@@ -127,13 +156,13 @@ rule get_archaeal_taxonomy_file:
 
         elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv' >/dev/null 2>&1; then
             wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar53_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
-            mv {output} resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
-            gzip resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
+            mv {output} {params.shared}/ar53_taxonomy_r{config[gtdb_version]}.tsv
+            gzip {params.shared}/ar53_taxonomy_r{config[gtdb_version]}.tsv
 
         elif curl -f '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv'; then
             wget '{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}/ar_taxonomy_r{config[gtdb_version]}.tsv' -O {output}
-            mv {output} resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
-            gzip resources/ar53_taxonomy_r{config[gtdb_version]}.tsv
+            mv {output} {params.shared}/ar53_taxonomy_r{config[gtdb_version]}.tsv
+            gzip {params.shared}/ar53_taxonomy_r{config[gtdb_version]}.tsv
 
         else
             echo "GTDB taxonomy file could not be found"
@@ -143,25 +172,67 @@ rule get_archaeal_taxonomy_file:
 
 rule unzip_bacterial_taxonomy_file:
     input:
-        "resources/bac120_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+        "{}/bac120_taxonomy_r{}.tsv.gz".format(_SHARED, _VER)
     output:
-        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"])
+        "{}/bac120_taxonomy_r{}.tsv".format(_SHARED, _VER)
     shell:
         "gzip -d {input}"
 
 rule unzip_archaeal_taxonomy_file:
     input:
-        "resources/ar53_taxonomy_r{}.tsv.gz".format(config["gtdb_version"])
+        "{}/ar53_taxonomy_r{}.tsv.gz".format(_SHARED, _VER)
     output:
-        "resources/ar53_taxonomy_r{}.tsv".format(config["gtdb_version"])
+        "{}/ar53_taxonomy_r{}.tsv".format(_SHARED, _VER)
     shell:
         "gzip -d {input}"
+
+rule get_bacterial_metadata_file:
+    output:
+        "{}/bac120_metadata_r{}.tsv.gz".format(_SHARED, _VER)
+    shell:
+        """
+        BASE='{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}'
+        if curl -f "$BASE/bac120_metadata_r{config[gtdb_version]}.tsv.gz" >/dev/null 2>&1; then
+            wget "$BASE/bac120_metadata_r{config[gtdb_version]}.tsv.gz" -O {output}
+        elif curl -f "$BASE/bac120_metadata_r{config[gtdb_version]}.tar.gz" >/dev/null 2>&1; then
+            wget "$BASE/bac120_metadata_r{config[gtdb_version]}.tar.gz" -O {output}.tar.gz
+            tar -xzf {output}.tar.gz --wildcards '*.tsv' --strip-components=1 -O | gzip > {output}
+            rm -f {output}.tar.gz
+        elif curl -f "$BASE/bac_metadata_r{config[gtdb_version]}.tsv.gz" >/dev/null 2>&1; then
+            wget "$BASE/bac_metadata_r{config[gtdb_version]}.tsv.gz" -O {output}
+        else
+            echo "GTDB bacterial metadata file could not be found"
+            exit -111
+        fi
+        """
+
+rule get_archaeal_metadata_file:
+    output:
+        "{}/ar53_metadata_r{}.tsv.gz".format(_SHARED, _VER)
+    shell:
+        """
+        BASE='{config[gtdb_base_url]}release{config[gtdb_version]}/{config[gtdb_version]}.{config[gtdb_subversion]}'
+        if curl -f "$BASE/ar53_metadata_r{config[gtdb_version]}.tsv.gz" >/dev/null 2>&1; then
+            wget "$BASE/ar53_metadata_r{config[gtdb_version]}.tsv.gz" -O {output}
+        elif curl -f "$BASE/ar53_metadata_r{config[gtdb_version]}.tar.gz" >/dev/null 2>&1; then
+            wget "$BASE/ar53_metadata_r{config[gtdb_version]}.tar.gz" -O {output}.tar.gz
+            tar -xzf {output}.tar.gz --wildcards '*.tsv' --strip-components=1 -O | gzip > {output}
+            rm -f {output}.tar.gz
+        elif curl -f "$BASE/ar_metadata_r{config[gtdb_version]}.tsv.gz" >/dev/null 2>&1; then
+            wget "$BASE/ar_metadata_r{config[gtdb_version]}.tsv.gz" -O {output}
+        elif curl -f "$BASE/ar122_metadata_r{config[gtdb_version]}.tsv.gz" >/dev/null 2>&1; then
+            wget "$BASE/ar122_metadata_r{config[gtdb_version]}.tsv.gz" -O {output}
+        else
+            echo "GTDB archaeal metadata file could not be found"
+            exit -111
+        fi
+        """
 
 rule create_genome2taxa:
     input:
         get_accession_ids_file,
-        "resources/bac120_taxonomy_r{}.tsv".format(config["gtdb_version"]),
-        "resources/ar53_taxonomy_r{}.tsv".format(config["gtdb_version"])
+        "{}/bac120_taxonomy_r{}.tsv".format(_SHARED, _VER),
+        "{}/ar53_taxonomy_r{}.tsv".format(_SHARED, _VER)
     output:
         "results/{dataset}/genome2taxa.csv"
     params:
@@ -260,7 +331,7 @@ rule add_self_hits_to_diamond_all_vs_all:
     shell:
         """
         cp {input.diamond} {output}
-        # ---------- guarantee self-hits so singletons survive ---------- 
+        # ---------- guarantee self-hits so singletons survive ----------
         # q s pident bits evalue qcov scov  (7 cols, tab-separated)
         awk '/^>/{{sub(/^>/,"",$0); printf "%s\\t%s\\t100\\t1000\\t1e-200\\t100\\t100\\n",$0,$0 }}' "{input.query}" >> "{output}"
         """
@@ -301,21 +372,21 @@ rule split_mcl_clusters:
 
 rule download_eggnog_diamond_database:
     output:
-        "resources/eggnog_diamond_db/eggnog.db",
-        "resources/eggnog_diamond_db/eggnog.db.fieldpresence.bin",
-        "resources/eggnog_diamond_db/eggnog.db.taxids.bin",
-        "resources/eggnog_diamond_db/eggnog_proteins.dmnd",
-        "resources/eggnog_diamond_db/eggnog.taxa.db",
-        "resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl",
-        "resources/eggnog_diamond_db/go-basic.obo"
+        "{}/eggnog_diamond_db/eggnog.db".format(_SHARED),
+        "{}/eggnog_diamond_db/eggnog.db.fieldpresence.bin".format(_SHARED),
+        "{}/eggnog_diamond_db/eggnog.db.taxids.bin".format(_SHARED),
+        "{}/eggnog_diamond_db/eggnog_proteins.dmnd".format(_SHARED),
+        "{}/eggnog_diamond_db/eggnog.taxa.db".format(_SHARED),
+        "{}/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl".format(_SHARED),
+        "{}/eggnog_diamond_db/go-basic.obo".format(_SHARED)
     params:
-        outdir="resources/eggnog_diamond_db"
+        outdir="{}/eggnog_diamond_db".format(_SHARED)
     shell:
         """
         mkdir -p {params.outdir}
-        # eggnog-mapper v3 beta bug: set_data_path() validates the default site-packages/data
+        # eggnog-mapper v3 beta bug: set_data_path() validates the default, hardcoded site-packages/data
         # directory before --data_dir is parsed. Create it so the check passes.
-        #python -c "import eggnogmapper, os; os.makedirs(os.path.join(os.path.dirname(eggnogmapper.__file__), 'data'), exist_ok=True)"
+        python -c "import eggnogmapper, os; os.makedirs(os.path.join(os.path.dirname(eggnogmapper.__file__), '../data'), exist_ok=True)"
         download_eggnog_data.py -y -f --data_dir {params.outdir}
         """
 
@@ -323,13 +394,13 @@ rule download_eggnog_diamond_database:
 rule eggnog_mapper:
     input:
         fasta="results/{dataset}/all_genomes_protein.faa",
-        db="resources/eggnog_diamond_db/eggnog.db",
-        fp="resources/eggnog_diamond_db/eggnog.db.fieldpresence.bin",
-        taxids="resources/eggnog_diamond_db/eggnog.db.taxids.bin",
-        dmnd="resources/eggnog_diamond_db/eggnog_proteins.dmnd",
-        taxadb="resources/eggnog_diamond_db/eggnog.taxa.db",
-        pkl="resources/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl",
-        go="resources/eggnog_diamond_db/go-basic.obo"
+        db="{}/eggnog_diamond_db/eggnog.db".format(_SHARED),
+        fp="{}/eggnog_diamond_db/eggnog.db.fieldpresence.bin".format(_SHARED),
+        taxids="{}/eggnog_diamond_db/eggnog.db.taxids.bin".format(_SHARED),
+        dmnd="{}/eggnog_diamond_db/eggnog_proteins.dmnd".format(_SHARED),
+        taxadb="{}/eggnog_diamond_db/eggnog.taxa.db".format(_SHARED),
+        pkl="{}/eggnog_diamond_db/eggnog.taxa.db.traverse.pkl".format(_SHARED),
+        go="{}/eggnog_diamond_db/go-basic.obo".format(_SHARED)
     output:
         "results/{dataset}/eggnog/annotations.emapper.annotations",
         "results/{dataset}/eggnog/annotations.emapper.hits",
@@ -341,7 +412,7 @@ rule eggnog_mapper:
     params:
         mode="diamond",
         outputprefix="results/{dataset}/eggnog/annotations",
-        db="resources/eggnog_diamond_db"
+        db="{}/eggnog_diamond_db".format(_SHARED)
     shell:
         """
         emapper.py -i {input.fasta} --itype proteins --cpu {threads} --data_dir {params.db} -m {params.mode} --output {params.outputprefix} --override
@@ -357,7 +428,7 @@ rule cluster_into_cogs:
         huge_cutoff=str(int(5 * sum(1 for _ in open("resources/{}/{}".format(config["dataset"], config["accession_ids_file"])))))
     shell:
         """
-        scripts/create_cog_clusters.py -e {input.eggnog_annotations} -f {input.fasta_dir} -o {output} -c {params.huge_cutoff} 
+        scripts/create_cog_clusters.py -e {input.eggnog_annotations} -f {input.fasta_dir} -o {output} -c {params.huge_cutoff}
         """
 
 rule create_eggnog_cog_counts_table:
@@ -373,3 +444,93 @@ rule create_eggnog_cog_counts_table:
         """
         scripts/generate_presence_absence_table.py -e {input.eggnog_annotations} -o {output} -m {input.genome_to_abbrev} --map-col-eggnog {params.column_name_for_abbrev} --map-col-output {params.column_name_for_accession}
         """
+
+# Optional: DuckDB + Parquet from eggnog results 
+
+rule create_dataset_db:
+    input:
+        eggnog_annotations="results/{dataset}/eggnog/annotations.emapper.annotations",
+        genome2abbrev="results/{dataset}/genome2abbrev.csv",
+        fasta_dir="results/{dataset}/genomes_protein",
+        na_dir="resources/{dataset}/selected_genomes_na",
+        id_map="results/{dataset}/sequenceid_new2original.csv",
+        bac_metadata="{}/bac120_metadata_r{}.tsv.gz".format(_SHARED, _VER),
+        arc_metadata="{}/ar53_metadata_r{}.tsv.gz".format(_SHARED, _VER)
+    output:
+        genome_parquet="results/{dataset}/db/genome.parquet",
+        protein_parquet="results/{dataset}/db/protein.parquet",
+        protein_dna_parquet="results/{dataset}/db/protein_dna.parquet",
+        duckdb="results/{dataset}/db/dataset.duckdb"
+    resources:
+        mem_mb_per_cpu=16000,
+        runtime=480
+    shell:
+        """
+        scripts/create_db.py \
+            --genome2abbrev {input.genome2abbrev} \
+            --eggnog {input.eggnog_annotations} \
+            --fasta-dir {input.fasta_dir} \
+            --na-dir {input.na_dir} \
+            --id-map {input.id_map} \
+            --bac-metadata {input.bac_metadata} \
+            --arc-metadata {input.arc_metadata} \
+            --output-dir results/{wildcards.dataset}/db \
+            --duckdb {output.duckdb} \
+            --max-ram-mb {resources.mem_mb_per_cpu} \
+            --compression zstd
+        """
+
+rule flush_db_to_shared:
+    """
+    Flush the large protein parquet files from fast scratch to
+    shared_data_dir and rewrite the DuckDB views to their new locations.
+
+    Runs as a localrule (login node). No-op when shared_data_dir is null.
+
+    After the flush:
+      /scratch        — genome.parquet (KB), dataset.duckdb (KB, views -> shared)
+      shared_data  — {dataset}/db/protein.parquet (GB), protein_dna.parquet (GB)
+    """
+    input:
+        genome_parquet      = "results/{dataset}/db/genome.parquet",
+        protein_parquet     = "results/{dataset}/db/protein.parquet",
+        protein_dna_parquet = "results/{dataset}/db/protein_dna.parquet",
+        duckdb              = "results/{dataset}/db/dataset.duckdb"
+    output:
+        touch("results/{dataset}/db/.flush_complete")
+    run:
+        import os, shutil, duckdb as _ddb
+        from pathlib import Path
+
+        shared = config.get("shared_data_dir")
+        if not shared:
+            print("[flush] shared_data_dir not set -- parquets stay on flash")
+        else:
+            dest = Path(shared) / wildcards.dataset / "db"
+            dest.mkdir(parents=True, exist_ok=True)
+
+            large_files = [input.protein_parquet, input.protein_dna_parquet]
+            for src in large_files:
+                dst = dest / Path(src).name
+                print(f"[flush] {src} -> {dst}")
+                shutil.copy2(src, dst)
+                Path(src).unlink()
+
+            # Rewrite DuckDB so its views point to the shared paths.
+            # genome stays on flash (it's tiny), protein* are now on shared.
+            genome_abs      = os.path.abspath(input.genome_parquet)
+            protein_abs     = str(dest / "protein.parquet")
+            protein_dna_abs = str(dest / "protein_dna.parquet")
+
+            os.remove(input.duckdb)
+            con = _ddb.connect(input.duckdb)
+            con.execute(f"CREATE TABLE genome AS SELECT * FROM read_parquet('{genome_abs}')")
+            con.execute(f"CREATE VIEW protein     AS SELECT * FROM read_parquet('{protein_abs}')")
+            con.execute(f"CREATE VIEW protein_dna AS SELECT * FROM read_parquet('{protein_dna_abs}')")
+            con.close()
+            print(f"[flush] DuckDB rewritten with shared paths: {input.duckdb}")
+
+
+rule db_all:
+    input:
+        "results/{}/db/.flush_complete".format(config["dataset"])
