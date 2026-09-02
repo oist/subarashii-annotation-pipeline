@@ -265,8 +265,16 @@ rule generate_shortcodes:
         "results/{dataset}/genome2taxa.csv"
     output:
         "results/{dataset}/genome2abbrev.csv"
+    params:
+        custom=lambda wildcards: config.get("custom_abbrev_map", "")
     shell:
-        "scripts/rename_genomes.py {input} {output}"
+        """
+        if [ -n "{params.custom}" ]; then
+            cp {params.custom} {output}
+        else
+            scripts/rename_genomes.py {input} {output}
+        fi
+        """
 
 rule rename_proteins:
     input:

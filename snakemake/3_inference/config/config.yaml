@@ -1,31 +1,60 @@
 ---
 dataset: "dataset_1007genomes_r226_I18_Normal"
+# Environment-module name for OpenMPI (used by PhyloBayes-MPI and AleRax)
 openmpi_module_name: "openmpi.gcc"
+# Path to extra modulefiles directory, if modules are not in the default search path
 extra_modules: "/apps/unit/SzollosiU/.modulefiles"
+
 phylobayes:
+  # MCMC samples to collect per gene family
   target_samples: 10000
+  # MCMC samples for the concatenated run
   target_samples_concatenated: 20000
+  # MPI tasks for per-family PhyloBayes runs
   tasks: 16
+  # MPI tasks for the concatenated PhyloBayes run
   tasks_concatenated: 128
+  # RAM per MPI task in MB
   mem: 4000
+  # Mixture model (cat or wag)
   model: "cat"
+  # Exchange-rates matrix (lg, wag, …)
   exch: "lg"
+  # Chain IDs to run
   chains: ["1","2"]
+  # SLURM runtime limit in minutes
   runtime: 5760
+  # Environment-module name for PhyloBayes-MPI
   module_name: "phylobayesmpi"
+  # Absolute path to pb_mpi binary (used when module loading is unavailable)
   path: "/apps/unit/SzollosiU/phylobayesmpi/1.9/bin/pb_mpi"
+  # Burn-in samples to discard when computing the Bayesian consensus
   burnin: 5000
+
 iqtree:
+  # Threads for per-family IQ-TREE runs
   threads: 16
+  # Threads for the concatenated IQ-TREE run
   threads_concatenated: 64
+  # SLURM runtime limit in minutes
   runtime: 5760
+  # Environment-module name for IQ-TREE
   module_name: "iqtree3"
+  # RAM per task in MB
   mem: 4000
+  # Substitution model for per-family IQ-TREE
   model: "LG+G4"
+  # Substitution model for the concatenated IQ-TREE run
   model_concatenated: "LG+C60+G4"
+  # Absolute path to iqtree binary (used when module loading is unavailable)
   path: "/apps/unit/SzollosiU/iqtree3/3.0.1/bin/iqtree3"
+
 alerax:
+  # MPI tasks for AleRax DTL reconciliation
   tasks: 16
+  # SLURM runtime limit in minutes
   runtime: 5760
+  # Environment-module name for AleRax
   module_name: "alerax"
+  # Absolute path to AleRax binary (used when module loading is unavailable)
   path: "/apps/unit/SzollosiU/alerax/1.2.0/bin/alerax"

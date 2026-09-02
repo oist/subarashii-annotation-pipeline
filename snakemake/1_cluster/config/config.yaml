@@ -1,29 +1,35 @@
 ---
 dataset: "dataset_1007genomes_r226"
 accession_ids_file: "list_of_accession_ids.txt"
+# GTDB release number (e.g. 232, 226, 220)
 gtdb_version: "226"
+# GTDB sub-release number (usually 0)
 gtdb_subversion: "0"
+# Base URL for GTDB file downloads (check fastest based on your geolocation on GTDB's website)
 gtdb_base_url: "https://data.ace.uq.edu.au/public/gtdb/data/releases/"
-# manually add taxa information that is not present in GTDB's taxonomy file
+# TSV file with extra taxonomy rows not in GTDB, placed in resources/{dataset}/
 manually_add_taxa_file: "manually_add_taxa.txt"
-diamond:
-  threads: 32
-  evalue_cut: 1e-5
-  # percent:
-  cov_cut: 50 
-mcl:
-  inflation: [1.4, 1.8, 2.0]
-  # memory in MB, 20 GB was not enough, setting to 100 GB
-  memory: 100000
-  # runtime in minutes (1 day = 1440 min)
-  runtime: 1440
-eggnog:
-  threads: 60
-mafft:
-  threads: 4
-# shared_data_dir -- where all large reference and output files live.
-# Useful in HPC cluster systems where there is fast, but limited scratch
-# and a larger backstorage that is not writable but readable by compute nodes. 
-#   null (default): everything stays in the project directory on scratch.
-#   Per-dataset files (selected genomes, results/) always stay on scratch.
+# Path to a custom genome abbreviation CSV (accession,short columns); overrides auto-generated names
+custom_abbrev_map: null
+# Path to bulk storage for large shared files (GTDB archives, eggnog DB, protein parquets); null keeps everything in resources/
 shared_data_dir: null
+
+diamond:
+  # Threads for DIAMOND all-vs-all BLAST
+  threads: 32
+  # E-value cutoff for DIAMOND hits
+  evalue_cut: 1e-5
+  # Minimum query/subject coverage (%) for DIAMOND hits
+  cov_cut: 50
+
+mcl:
+  # MCL inflation factors; all run in parallel (higher = more, smaller clusters)
+  inflation: [1.4, 1.8, 2.0]
+  # RAM limit for MCL in MB (100 GB recommended for >500 genomes)
+  memory: 100000
+  # SLURM runtime limit for MCL in minutes (1 day = 1440)
+  runtime: 1440
+
+eggnog:
+  # Threads for eggnog-mapper
+  threads: 60

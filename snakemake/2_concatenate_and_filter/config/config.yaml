@@ -1,4 +1,6 @@
 ---
 dataset: "dataset_1007genomes_r226_I18_Normal"
+
 mafft:
+  # Threads for MAFFT multiple sequence alignment
   threads: 4
