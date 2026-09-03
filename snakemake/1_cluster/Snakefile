@@ -278,7 +278,7 @@ rule generate_shortcodes:
     output:
         "results/{dataset}/genome2abbrev.csv"
     params:
-        custom=lambda wildcards: config.get("custom_abbrev_map", "")
+        custom=lambda wildcards: config.get("custom_abbrev_map") or ""
     shell:
         """
         if [ -n "{params.custom}" ]; then
