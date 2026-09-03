@@ -25,6 +25,18 @@ localrules:
 _SHARED = config.get("shared_data_dir", "resources")
 _VER    = str(config["gtdb_version"])
 
+# Genome count — read once at parse time so resource lambdas and params can use it.
+# Falls back to 100 if the ID list doesn't exist yet (first dry-run before setup).
+try:
+    with open("resources/{}/{}".format(config["dataset"], config["accession_ids_file"])) as _f:
+        _N_GENOMES = sum(1 for _l in _f if _l.strip())
+except FileNotFoundError:
+    _N_GENOMES = 100
+
+def _mem_mb(mb_per_genome: int, base_mb: int = 2000):
+    """Return a Snakemake resource lambda: scales with genome count, doubles on retry."""
+    return lambda wildcards, attempt: max(base_mb, _N_GENOMES * mb_per_genome) * attempt
+
 def get_accession_ids_file(wildcards):
     return "resources/{}/{}".format(wildcards.dataset, config["accession_ids_file"])
 
@@ -374,7 +386,10 @@ rule split_mcl_clusters:
     output:
         directory("results/{dataset}/mcl/{inflation}")
     params:
-        huge_cutoff=str(int(5 * sum(1 for _ in open("resources/{}/{}".format(config["dataset"], config["accession_ids_file"])))))
+        huge_cutoff=_N_GENOMES * 5
+    resources:
+        mem_mb_per_cpu=_mem_mb(mb_per_genome=8),
+        runtime=120
     shell:
         "scripts/split_clusters.py -f {input.fasta} -c {params.huge_cutoff} -m {input.cluster} -o {output}"
 
@@ -433,7 +448,10 @@ rule cluster_into_cogs:
     output:
         directory("results/{dataset}/cog_clusters")
     params:
-        huge_cutoff=str(int(5 * sum(1 for _ in open("resources/{}/{}".format(config["dataset"], config["accession_ids_file"])))))
+        huge_cutoff=_N_GENOMES * 5
+    resources:
+        mem_mb_per_cpu=_mem_mb(mb_per_genome=8),
+        runtime=120
     shell:
         """
         scripts/create_cog_clusters.py -e {input.eggnog_annotations} -f {input.fasta_dir} -o {output} -c {params.huge_cutoff}
