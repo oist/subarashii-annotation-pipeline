@@ -27,6 +27,7 @@ Authors:
     - Lenard L. Szantho <lenard@drenal.eu>
 
 Version:
+    - v0.4 (2026-09-02): try to deduce PATH to phylobayes, iqtree3 and alerax binaries and MPI modules
     - v0.3 (2026-09-02): create db from eggnog results, parameters self-documenting, shared directory for large file storage, read in accession IDs from species tree, custom accession ID - abbreviation list
     - v0.2 (2026-08-28): eggnog mapper v3 support 
     - v0.1 (2026-08-27): initial funcionality: start snakemake, check state, continue where it left off
@@ -34,6 +35,7 @@ Version:
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -219,6 +221,189 @@ def rename_tree_leaves(tree_path: Path, abbrev_csv: Path, out_path: Path) -> Non
         tree_str = tree_str.replace(acc, mapping[acc])
     out_path.write_text(tree_str)
     print(f"  [tree] Renamed {len(mapping)} leaves: {tree_path.name} -> {out_path.name}")
+
+
+# ── Stage 3 tool detection ────────────────────────────────────────────────────
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base, returning a new dict."""
+    result = dict(base)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _deep_merge(result[k], v)
+        else:
+            result[k] = v
+    return result
+
+
+def _load_stage3_full(cfg: dict) -> dict:
+    """Return Stage 3 config.yaml defaults merged with governor cfg overrides."""
+    try:
+        with open(STAGE3_DIR / "config" / "config.yaml") as f:
+            base = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        base = {}
+    return _deep_merge(base, cfg)
+
+
+def _binary_ok(path_str) -> bool:
+    """Return True if path_str is an executable file."""
+    if not path_str:
+        return False
+    p = Path(str(path_str))
+    return p.is_file() and os.access(str(p), os.X_OK)
+
+
+def _try_binary(*names: str) -> str | None:
+    """Return the full path of the first binary found in PATH, or None."""
+    for name in names:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def _module_available(module_name: str) -> bool:
+    """Return True if an environment module can be shown (implies it exists)."""
+    if not module_name:
+        return False
+    try:
+        r = subprocess.run(
+            ["bash", "-lc", f"module show {module_name}"],
+            capture_output=True, timeout=15,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+# Tools that must be reachable before Stage 3 can run.
+_STAGE3_TOOLS = [
+    {
+        "display":  "IQ-TREE",
+        "binaries": ["iqtree3", "iqtree"],
+        "path_key": ("iqtree", "path"),
+        "mod_key":  ("iqtree", "module_name"),
+        "set_flag": "iqtree.path",
+        "mod_flag": "iqtree.module_name",
+    },
+    {
+        "display":  "PhyloBayes-MPI",
+        "binaries": ["pb_mpi"],
+        "path_key": ("phylobayes", "path"),
+        "mod_key":  ("phylobayes", "module_name"),
+        "set_flag": "phylobayes.path",
+        "mod_flag": "phylobayes.module_name",
+    },
+    {
+        "display":  "AleRax",
+        "binaries": ["alerax", "AleRax"],
+        "path_key": ("alerax", "path"),
+        "mod_key":  ("alerax", "module_name"),
+        "set_flag": "alerax.path",
+        "mod_flag": "alerax.module_name",
+    },
+]
+
+
+def configure_stage3_tools(cfg: dict) -> dict:
+    """Validate, auto-detect, and interactively configure Stage 3 tool paths.
+
+    Merges Stage 3 config.yaml defaults with governor overrides so that a
+    valid default path in config.yaml is accepted without reprompting.
+
+    For each tool the resolution order is:
+      1. Configured path exists and is executable  → use it
+      2. Binary found in PATH                      → record and use it
+      3. Configured module name is loadable        → use it
+      4. Prompt the user (or print guidance if not on a TTY)
+
+    OpenMPI is checked similarly: mpirun in PATH, then module, then prompt.
+    Compute nodes often have OpenMPI even when the login node does not, so a
+    missing module check is treated as a warning rather than a hard error.
+
+    Returns the updated cfg dict (overrides are recorded so they persist to the
+    state file and are passed to Snakemake on the next invocation).
+    """
+    full = _load_stage3_full(cfg)
+    interactive = sys.stdin.isatty()
+    unresolved: list[str] = []
+
+    print()
+    print("  Checking Stage 3 tool availability...")
+
+    for tool in _STAGE3_TOOLS:
+        k1, k2 = tool["path_key"]
+        m1, m2 = tool["mod_key"]
+        path_val = (full.get(k1) or {}).get(k2, "")
+        mod_val  = (full.get(m1) or {}).get(m2, "")
+
+        if _binary_ok(path_val):
+            print(f"    {tool['display']:<18} found at {path_val}")
+            continue
+
+        found = _try_binary(*tool["binaries"])
+        if found:
+            print(f"    {tool['display']:<18} auto-detected at {found}")
+            set_nested(cfg, tool["set_flag"], found)
+            continue
+
+        if _module_available(mod_val):
+            print(f"    {tool['display']:<18} module '{mod_val}' available")
+            continue
+
+        # Not found — prompt or record as unresolved
+        print(f"    {tool['display']:<18} NOT FOUND")
+        if path_val:
+            print(f"      configured path '{path_val}' does not exist or is not executable")
+        if mod_val:
+            print(f"      module '{mod_val}' is not loadable (may be available on compute nodes)")
+        print(f"      searched PATH for: {', '.join(tool['binaries'])}")
+
+        if interactive:
+            ans = input(f"      Absolute path to {tool['display']} binary (blank to set module name instead): ").strip()
+            if ans:
+                set_nested(cfg, tool["set_flag"], ans)
+                print(f"      Saved as {tool['set_flag']}={ans}")
+            else:
+                mod = input(f"      Module name for {tool['display']} (blank to skip — pipeline may fail): ").strip()
+                if mod:
+                    set_nested(cfg, tool["mod_flag"], mod)
+                    print(f"      Saved as {tool['mod_flag']}={mod}")
+                else:
+                    unresolved.append(tool["display"])
+        else:
+            print(f"      Fix with:  --set {tool['set_flag']}=/path/to/binary")
+            print(f"          or:    --set {tool['mod_flag']}=module_name")
+            unresolved.append(tool["display"])
+
+    # OpenMPI — needed by PhyloBayes-MPI and AleRax
+    openmpi_mod = full.get("openmpi_module_name", "")
+    if shutil.which("mpirun") or shutil.which("mpiexec"):
+        print(f"    {'OpenMPI':<18} mpirun found in PATH")
+    elif _module_available(openmpi_mod):
+        print(f"    {'OpenMPI':<18} module '{openmpi_mod}' available")
+    else:
+        print(f"    {'OpenMPI':<18} not found in PATH")
+        if openmpi_mod:
+            print(f"      module '{openmpi_mod}' is not loadable on this node")
+        print(f"      Note: compute nodes often have OpenMPI even when the login node does not.")
+        if interactive:
+            mod = input("      OpenMPI module name (blank = assume available on compute nodes): ").strip()
+            if mod:
+                cfg["openmpi_module_name"] = mod
+                print(f"      Saved as openmpi_module_name={mod}")
+        else:
+            if openmpi_mod:
+                print(f"      If this is wrong, fix with:  --set openmpi_module_name=module_name")
+
+    if unresolved:
+        print()
+        print(f"  Warning: {len(unresolved)} tool(s) unresolved: {', '.join(unresolved)}")
+        print("  Stage 3 may fail. Re-run interactively or supply paths via --set.")
+
+    print()
+    return cfg
 
 
 # ── snakemake runner ───────────────────────────────────────────────────────────
@@ -435,6 +620,12 @@ def advance_dataset(
         mark("transition_2to3", "complete")
     else:
         print(f"O  {STEP_LABELS['transition_2to3']}")
+
+    # ── Stage 3 tool check (runs once; skipped when all Stage 3 is done) ────────
+    if not all(done(s) for s in ("stage3_per_family", "stage3_concat", "stage3_alerax")):
+        cfg = configure_stage3_tools(cfg)
+        state["config"] = cfg
+        save_state(state)
 
     # ── Stage 3a: per-family trees (always required) ──────────────────────────
     if not done("stage3_per_family"):
