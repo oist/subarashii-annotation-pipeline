@@ -21,3 +21,4 @@ snakemake_env/
 snakemake/*/resources
 .snakemake/
 snakemake/*/results
+.governor/

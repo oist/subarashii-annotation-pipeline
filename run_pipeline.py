@@ -51,6 +51,7 @@ SNAKEMAKE_DIR = ROOT / "snakemake"
 STAGE1_DIR = SNAKEMAKE_DIR / "1_cluster"
 STAGE2_DIR = SNAKEMAKE_DIR / "2_concatenate_and_filter"
 STAGE3_DIR = SNAKEMAKE_DIR / "3_inference"
+GOVERNOR_DIR = ROOT / ".governor"
 
 # Steps in execution order. Each is a key in the state file.
 STEPS = [
@@ -90,7 +91,7 @@ def now_iso() -> str:
 
 
 def state_path(dataset: str) -> Path:
-    return STAGE1_DIR / "resources" / dataset / ".pipeline_state.json"
+    return GOVERNOR_DIR / dataset / "pipeline_state.json"
 
 
 def load_state(dataset: str) -> dict:
@@ -114,14 +115,17 @@ def load_state(dataset: str) -> dict:
 def save_state(state: dict) -> None:
     state["last_updated"] = now_iso()
     p = state_path(state["dataset"])
+    p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(state, indent=2))
 
 
 def find_datasets() -> list[str]:
-    resources = STAGE1_DIR / "resources"
-    if not resources.exists():
+    if not GOVERNOR_DIR.exists():
         return []
-    return sorted(p.parent.name for p in resources.rglob(".pipeline_state.json"))
+    return sorted(
+        p.name for p in GOVERNOR_DIR.iterdir()
+        if p.is_dir() and (p / "pipeline_state.json").exists()
+    )
 
 
 def set_nested(d: dict, dotted_key: str, value) -> None:
@@ -481,6 +485,50 @@ def run_snakemake(
     return result.returncode == 0
 
 
+# ── output presence checks ────────────────────────────────────────────────────
+
+def _step_outputs_exist(step: str, dataset: str, clustering: str = "eggnog") -> bool:
+    """Return True if the step's key sentinel outputs are present on disk.
+
+    Only checks steps where the user might delete intermediate data; stage3
+    sub-steps trust the state file because their outputs are complex and rarely
+    wiped independently.
+    Path.exists() follows symlinks, so dangling symlinks return False — this
+    catches transition_2to3 resources that point to deleted Stage 2 results.
+    """
+    clusters = ["eggnog"] if clustering == "eggnog" else ["mcl", "eggnog"]
+
+    if step == "stage1":
+        return (STAGE1_DIR / "results" / dataset / "genome2abbrev.csv").exists()
+
+    if step == "stage1_db":
+        return (STAGE1_DIR / "results" / dataset / "db" / ".flush_complete").exists()
+
+    if step == "transition_1to2":
+        for cl in clusters:
+            d = STAGE2_DIR / "resources" / dataset / cl
+            if not (d.is_dir() and any(d.glob("*.faa"))):
+                return False
+        return True
+
+    if step == "stage2":
+        for cl in clusters:
+            stat = STAGE2_DIR / "results" / dataset / cl / "alignment_statistics.txt"
+            if not stat.exists():
+                return False
+        return True
+
+    if step == "transition_2to3":
+        for cl in clusters:
+            # exists() returns False for dangling symlinks
+            fa = STAGE3_DIR / "resources" / dataset / cl / "concatenated.universality.fa"
+            if not fa.exists():
+                return False
+        return True
+
+    return True  # stage3 sub-steps: trust the state file
+
+
 # ── transition scripts ─────────────────────────────────────────────────────────
 
 def run_transition_1to2(
@@ -526,6 +574,20 @@ def advance_dataset(
     mcl_inflation = cfg.get("mcl_inflation", 1.8)
     clustertype = cfg.get("clustertype", "Normal")
     clustering = cfg.get("clustering", "eggnog")
+
+    # ── Validate state against disk ───────────────────────────────────────────
+    # A step marked "complete" whose outputs are no longer on disk is silently
+    # reset to "pending" so the governor re-runs it.  This handles the case
+    # where a user manually deletes intermediate results to re-run a stage.
+    revalidated = False
+    for step in STEPS:
+        if state["steps"][step] == "complete":
+            if not _step_outputs_exist(step, dataset, clustering):
+                print(f"  [reset] '{STEP_LABELS[step]}' outputs missing on disk — resetting to pending.")
+                state["steps"][step] = "pending"
+                revalidated = True
+    if revalidated:
+        save_state(state)
 
     print(f"\n{'='*60}")
     print(f"Dataset: {dataset}")
