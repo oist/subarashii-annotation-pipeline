@@ -2,6 +2,10 @@ configfile: "config/config.yaml"
 
 import glob
 
+# Mirror the clustering mode set in Stage 1 so rule all only requests the
+# cluster types that were actually produced.
+_CLUSTERS = ["eggnog"] if config.get("clustering", "eggnog") == "eggnog" else ["mcl", "eggnog"]
+
 def get_msas(wildcards):
     msas=[]
     for file in glob.glob("resources/{}/{}/*.faa".format(wildcards.dataset, wildcards.cluster)):
@@ -10,11 +14,11 @@ def get_msas(wildcards):
 
 rule all:
     input:
-        expand("results/{dataset}/{cluster}/alignment_statistics.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/family_scoring.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/top_families", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/concatenated.universality.phylip", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/concatenated.universality.fa", dataset=config["dataset"], cluster=["mcl", "eggnog"])
+        expand("results/{dataset}/{cluster}/alignment_statistics.txt", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/family_scoring.txt", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/top_families", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/concatenated.universality.phylip", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/concatenated.universality.fa", dataset=config["dataset"], cluster=_CLUSTERS)
 
 rule align_msas_with_mafft:
     input:

@@ -2,6 +2,11 @@ configfile: "config/config.yaml"
 
 import glob
 import os
+
+# Mirror the clustering mode from Stage 1 so named rules only request the
+# cluster types that were actually produced in Stage 2.
+_CLUSTERS = ["eggnog"] if config.get("clustering", "eggnog") == "eggnog" else ["mcl", "eggnog"]
+
 def get_phylobayes_per_fam_result_files(wildcards):
     msas=[]
     for file in glob.glob("resources/{}/{}/top_families/*.phylip".format(wildcards.dataset, wildcards.cluster)):
@@ -27,19 +32,19 @@ rule all:
 # Named targets used by the governor script to run stages independently.
 rule per_family_all:
     input:
-        expand("results/{dataset}/{cluster}/phylobayes_burnin_cut", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/alerax_pb/families.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/alerax_iqtree/families.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/phylobayes_burnin_cut", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/alerax_pb/families.txt", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/alerax_iqtree/families.txt", dataset=config["dataset"], cluster=_CLUSTERS),
 
 rule concat_all:
     input:
-        expand("results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], cluster=["mcl", "eggnog"], model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
-        expand("results/{dataset}/{cluster}/iqtree/concatenated.universality.iqtree", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/phylobayes/concatenated_universality_{model}_{exch}_chain{chain}.done", dataset=config["dataset"], cluster=_CLUSTERS, model=config["phylobayes"]["model"], exch=config["phylobayes"]["exch"], chain=config["phylobayes"]["chains"]),
+        expand("results/{dataset}/{cluster}/iqtree/concatenated.universality.iqtree", dataset=config["dataset"], cluster=_CLUSTERS),
 
 rule alerax_all:
     input:
-        expand("results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
-        expand("results/{dataset}/{cluster}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=["mcl", "eggnog"]),
+        expand("results/{dataset}/{cluster}/alerax_iqtree/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=_CLUSTERS),
+        expand("results/{dataset}/{cluster}/alerax_pb/per_fam_likelihoods.txt", dataset=config["dataset"], cluster=_CLUSTERS),
 
 rule start_phylobayes_perfamily:
     input:

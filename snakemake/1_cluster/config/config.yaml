@@ -13,6 +13,8 @@ manually_add_taxa_file: "manually_add_taxa.txt"
 custom_abbrev_map: null
 # Path to bulk storage for large shared files (GTDB archives, eggnog DB, protein parquets); null keeps everything in resources/
 shared_data_dir: null
+# Clustering method: eggnog (COG-based, default, skips DIAMOND all-vs-all and MCL) or mcl (also runs MCL sweep for comparison)
+clustering: "eggnog"
 
 diamond:
   # Threads for DIAMOND all-vs-all BLAST

@@ -27,6 +27,7 @@ Authors:
     - Lenard L. Szantho <lenard@drenal.eu>
 
 Version:
+    - v0.5 (2026-09-04): --clustering flag makes MCL optional (default: eggnog-only)
     - v0.4 (2026-09-02): try to deduce PATH to phylobayes, iqtree3 and alerax binaries and MPI modules
     - v0.3 (2026-09-02): create db from eggnog results, parameters self-documenting, shared directory for large file storage, read in accession IDs from species tree, custom accession ID - abbreviation list
     - v0.2 (2026-08-28): eggnog mapper v3 support 
@@ -482,17 +483,19 @@ def run_snakemake(
 
 # ── transition scripts ─────────────────────────────────────────────────────────
 
-def run_transition_1to2(dataset: str, mcl_inflation: float, clustertype: str) -> bool:
+def run_transition_1to2(
+    dataset: str, mcl_inflation: float, clustertype: str, clustering: str = "eggnog"
+) -> bool:
     result = subprocess.run(
-        ["bash", "transition_1to2.sh", dataset, str(mcl_inflation), clustertype],
+        ["bash", "transition_1to2.sh", dataset, str(mcl_inflation), clustertype, clustering],
         cwd=SNAKEMAKE_DIR,
     )
     return result.returncode == 0
 
 
-def run_transition_2to3(dataset: str) -> bool:
+def run_transition_2to3(dataset: str, clustering: str = "eggnog") -> bool:
     result = subprocess.run(
-        ["bash", "transition_2to3.sh", dataset],
+        ["bash", "transition_2to3.sh", dataset, clustering],
         cwd=SNAKEMAKE_DIR,
     )
     return result.returncode == 0
@@ -522,6 +525,7 @@ def advance_dataset(
     # in dataset names.
     mcl_inflation = cfg.get("mcl_inflation", 1.8)
     clustertype = cfg.get("clustertype", "Normal")
+    clustering = cfg.get("clustering", "eggnog")
 
     print(f"\n{'='*60}")
     print(f"Dataset: {dataset}")
@@ -594,7 +598,7 @@ def advance_dataset(
     # ── Transition 1 → 2 ─────────────────────────────────────────────────────
     if not done("transition_1to2"):
         print(f">  {STEP_LABELS['transition_1to2']}")
-        ok = run_transition_1to2(dataset, mcl_inflation, clustertype)
+        ok = run_transition_1to2(dataset, mcl_inflation, clustertype, clustering)
         if not ok:
             return fail("transition_1to2", "transition_1to2.sh failed.")
         mark("transition_1to2", "complete")
@@ -614,7 +618,7 @@ def advance_dataset(
     # ── Transition 2 → 3 ─────────────────────────────────────────────────────
     if not done("transition_2to3"):
         print(f">  {STEP_LABELS['transition_2to3']}")
-        ok = run_transition_2to3(dataset)
+        ok = run_transition_2to3(dataset, clustering)
         if not ok:
             return fail("transition_2to3", "transition_2to3.sh failed.")
         mark("transition_2to3", "complete")
@@ -739,6 +743,9 @@ def cmd_run(args) -> None:
 
     if args.shared_data_dir:
         config_overrides["shared_data_dir"] = args.shared_data_dir
+
+    if args.clustering:
+        config_overrides["clustering"] = args.clustering
 
     if args.abbrev_map:
         abbrev_map_path = Path(args.abbrev_map)
@@ -877,6 +884,17 @@ def main() -> None:
             "Example: --set eggnog.threads=32 phylobayes.tasks=64. "
             "Advanced: use mcl_inflation=1.4 or clustertype=Normal to select "
             "which MCL result directory feeds into Stage 2 (default: 1.8 / Normal)."
+        ),
+    )
+    r.add_argument(
+        "--clustering", choices=["eggnog", "mcl"], default=None,
+        help=(
+            "Clustering method for gene family assignment. "
+            "'eggnog' (default): only COG-based clustering via EggNOG-mapper; "
+            "skips DIAMOND all-vs-all and MCL entirely, saving substantial compute. "
+            "'mcl': also runs MCL with all configured inflation factors in parallel "
+            "alongside EggNOG, useful for comparison or when EggNOG annotation is "
+            "unavailable. Stored in the dataset state once set."
         ),
     )
     r.add_argument(

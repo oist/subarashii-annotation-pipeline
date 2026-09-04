@@ -2,7 +2,9 @@
 
 usage() {
 	printf "\ntransition_2to3.sh script copies a given dataset's\n 2_concatenate_and_filter pipeline's results to the 3_inference\n pipeline's resources directory\n"
-	printf "\n Usage: bash transition_2to3.sh <dataset>\n"
+	printf "\n Usage: bash transition_2to3.sh <dataset> [clustering]\n"
+	printf "\n clustering: eggnog (default) -- only COG cluster results are symlinked\n"
+	printf "             mcl              -- both MCL and COG cluster results are symlinked\n"
 }
 
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
@@ -17,7 +19,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 if [ "$#" -gt 2 ]; then
-	echo "[err] This scripts accepts maximum one argument."
+	echo "[err] This script accepts maximum 2 arguments."
 	usage
 	exit 2
 fi
@@ -29,12 +31,20 @@ if [ ! -d 2_concatenate_and_filter/results/${DATASET} ]; then
 	exit 3
 fi
 
+CLUSTERING=${2:-eggnog}
+
+if [ "$CLUSTERING" == "eggnog" ]; then
+	CLUSTERS="eggnog"
+else
+	CLUSTERS="mcl eggnog"
+fi
+
 echo "[log] Creating directory $DATASET for dataset in 3_inference pipeline..."
 mkdir -p 3_inference/resources/${DATASET}
 
 cd 3_inference/resources/${DATASET}
 
-for cluster in {mcl,eggnog}; do
+for cluster in $CLUSTERS; do
 	echo "[log] Changing directory to 3_inference/resources/${DATASET}/${cluster}..."
 	mkdir ${cluster}
 	cd ${cluster}

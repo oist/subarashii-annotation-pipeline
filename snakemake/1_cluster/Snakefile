@@ -24,6 +24,9 @@ localrules:
 # directly to bulk storage, freeing fast /scratch.
 _SHARED = config.get("shared_data_dir", "resources")
 _VER    = str(config["gtdb_version"])
+# "eggnog" (default): only COG clustering via EggNOG-mapper.
+# "mcl": also run DIAMOND all-vs-all + MCL sweep for comparison.
+_CLUSTERING = config.get("clustering", "eggnog")
 
 # Genome count — read once at parse time so resource lambdas and params can use it.
 # Falls back to 100 if the ID list doesn't exist yet (first dry-run before setup).
@@ -40,16 +43,26 @@ def _mem_mb(mb_per_genome: int, base_mb: int = 2000):
 def get_accession_ids_file(wildcards):
     return "resources/{}/{}".format(wildcards.dataset, config["accession_ids_file"])
 
+_STAGE1_TARGETS = [
+    "{}/bac120_taxonomy_r{}.tsv".format(_SHARED, _VER),
+    "resources/{}/selected_genomes_protein".format(config["dataset"]),
+    "results/{}/genome2abbrev.csv".format(config["dataset"]),
+    "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
+    "results/{}/cog_clusters".format(config["dataset"]),
+    "results/{}/eggnog_cog_counts_table.csv".format(config["dataset"]),
+]
+if _CLUSTERING in ("mcl", "both"):
+    _STAGE1_TARGETS += expand(
+        "results/{dataset}/mcl_clusters_I{inf}.txt",
+        dataset=config["dataset"], inf=config["mcl"]["inflation"],
+    )
+    _STAGE1_TARGETS += expand(
+        "results/{dataset}/mcl/{inf}",
+        dataset=config["dataset"], inf=config["mcl"]["inflation"],
+    )
+
 rule all:
-    input:
-        "{}/bac120_taxonomy_r{}.tsv".format(_SHARED, _VER),
-        "resources/{}/selected_genomes_protein".format(config["dataset"]),
-        "results/{}/genome2abbrev.csv".format(config["dataset"]),
-        expand("results/{dataset}/mcl_clusters_I{inf}.txt", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
-        "results/{}/eggnog/annotations.emapper.annotations".format(config["dataset"]),
-        expand("results/{dataset}/mcl/{inf}", dataset=config["dataset"], inf=config["mcl"]["inflation"]),
-        "results/{}/cog_clusters".format(config["dataset"]),
-        "results/{}/eggnog_cog_counts_table.csv".format(config["dataset"])
+    input: _STAGE1_TARGETS
 
 rule get_all_genomes_protein:
     output:
