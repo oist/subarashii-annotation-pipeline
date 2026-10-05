@@ -50,6 +50,27 @@ def main():
     print(f"Processing EggNog annotation file {args.eggnog} ...")
     with open(args.eggnog) as csvfile:
         annotations = csv.reader(csvfile, delimiter='\t')
+
+        # Detect column indices from the header line (last "#" line before data).
+        # v2: eggNOG_OGs holds "COGxxxx@1|root,..." — filter for |root entries.
+        # v3: eggNOG_OGs holds domain names; COG_category holds the COG ID directly.
+        og_col = 4        # eggNOG_OGs, v2 default
+        cog_cat_col = None  # COG_category (v3: full COG ID; v2: single-letter code)
+        for rows in annotations:
+            if rows[0].startswith("#"):
+                header = [h.strip() for h in ([rows[0].lstrip("#").strip()] + rows[1:])]
+                for i, h in enumerate(header):
+                    if h == "eggNOG_OGs":
+                        og_col = i
+                    elif h == "COG_category":
+                        cog_cat_col = i
+                continue
+            break
+
+        print(f"Column indices — eggNOG_OGs: {og_col}, COG_category: {cog_cat_col}")
+
+        csvfile.seek(0)
+        annotations = csv.reader(csvfile, delimiter='\t')
         for rows in annotations:
             if rows[0][0] == "#":
                 continue
@@ -57,10 +78,19 @@ def main():
             genome = gene.split("_g")[0]
 
             cog_list = []
-            # e.g.: COG0457@1|root,COG0823@1|root,COG2885@1|root,COG0457@2|Bacteria,COG0823@2|Bacteria
-            for c in rows[4].split(","):
+            # v2: COG IDs appear as "COGxxxx@1|root" inside the eggNOG_OGs column.
+            # e.g.: COG0457@1|root,COG0823@1|root,COG2885@1|root,COG0457@2|Bacteria
+            for c in rows[og_col].split(","):
                 if "|root" in c:
-                    cog_list.append(c.split("@")[0].strip())
+                    token = c.split("@")[0].strip()
+                    if token.startswith("COG"):
+                        cog_list.append(token)
+
+            # v3 fallback: COG_category column now contains the full COG ID directly.
+            if not cog_list and cog_cat_col is not None and cog_cat_col < len(rows):
+                cog_cat = rows[cog_cat_col].strip()
+                if cog_cat and cog_cat != "-" and cog_cat.startswith("COG"):
+                    cog_list.append(cog_cat)
 
             genome2genes2cog.setdefault(genome, {})
             genome2genes2cog[genome].setdefault(gene, [])
@@ -135,6 +165,17 @@ def main():
             median_seqlen = statistics.median(cog2seqlengths[cog])
             paralogs = "Yes" if has_paralogs(cog2genes[cog]) else "No"
             outputfh.write(f"{cog}\t{size}\t{max_seqlen}\t{min_seqlen}\t{median_seqlen}\t{paralogs}\n")
+
+    normal_count = type_counter.get("Normal", 0)
+    if normal_count == 0:
+        print(
+            f"[create_cog_clusters] ERROR: 0 Normal-sized COG families produced.\n"
+            f"  eggNOG_OGs column used: index {og_col}\n"
+            f"  This usually means the column index is wrong for your EggNOG-mapper version.\n"
+            f"  Check the header of {args.eggnog} and ensure eggNOG_OGs is at index {og_col}.",
+            flush=True,
+        )
+        raise SystemExit(1)
 
     t2 = perf_counter()
     print(f"[create_cog_clusters] done. Elapsed time: {t2-t1:.2f} secs. Outputs in: {out_root}")

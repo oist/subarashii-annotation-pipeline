@@ -54,6 +54,26 @@ def main():
     print(f"Processing EggNog annotation file {args.eggnog} ...")
     with open(args.eggnog) as csvfile:
         annotations = csv.reader(csvfile, delimiter='\t')
+
+        # Detect column positions from the header.
+        # v2: eggNOG_OGs (col 4) holds "COGxxxx@1|root,...".
+        # v3: eggNOG_OGs holds domain names; COG_category (col 7) holds the COG ID.
+        og_col = 4
+        cog_cat_col = None
+        for rows in annotations:
+            if rows[0].startswith("#"):
+                header = [h.strip() for h in ([rows[0].lstrip("#").strip()] + rows[1:])]
+                for i, h in enumerate(header):
+                    if h == "eggNOG_OGs":
+                        og_col = i
+                    elif h == "COG_category":
+                        cog_cat_col = i
+                continue
+            break
+
+        print(f"Column indices — eggNOG_OGs: {og_col}, COG_category: {cog_cat_col}")
+        csvfile.seek(0)
+        annotations = csv.reader(csvfile, delimiter='\t')
         for rows in annotations:
             if rows[0][0] == "#":
                continue
@@ -61,7 +81,14 @@ def main():
             genome = gene
             if not args.fullnames:
                 genome = gene.split("_")[0]
-            cog = rows[4].split("@")[0].strip()
+
+            # v2: COG ID is the prefix before "@" in the eggNOG_OGs column.
+            cog = rows[og_col].split("@")[0].strip()
+            # v3 fallback: COG_category column contains the full COG ID directly.
+            if cog[:3] != "COG" and cog_cat_col is not None and cog_cat_col < len(rows):
+                cog_cat = rows[cog_cat_col].strip()
+                if cog_cat.startswith("COG"):
+                    cog = cog_cat
 
             if not args.all:
                 # filter out non COGs
